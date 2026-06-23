@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+title: TRACE-Omics
+message: "If you use this framework, please cite it."
+authors:
+  - family-names: Ehlers
+    given-names: Ashley
+repository-code: https://github.com/AshleyPy/trace-omics
+license: MIT
