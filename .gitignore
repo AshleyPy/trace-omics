@@ -1,0 +1,21 @@
+# R
+.Rhistory
+.RData
+.Ruserdata
+
+# Data
+data/raw/
+data/processed/
+
+# Results
+results/
+*.rds
+*.csv
+*.png
+*.tiff
+*.pdf
+*.html
+
+# System
+.DS_Store
+Thumbs.db
