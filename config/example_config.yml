@@ -1,0 +1,242 @@
+```yaml
+# ==============================================================================
+# TRACE-Omics example configuration
+# ==============================================================================
+# This file defines the main analysis settings used by the TRACE-Omics workflow.
+# Copy this file, rename it for your disease/project, and edit the values below.
+#
+# Example:
+#   config/TB_config.yml
+#   config/UC_config.yml
+#   config/RA_config.yml
+#
+# The scripts are designed to work with relative paths so that the repository can
+# be cloned and run on another machine without editing private local directories.
+# ==============================================================================
+
+project:
+  name: "TRACE-Omics"
+  description: "Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics machine learning"
+  version: "0.1.0"
+  seed: 7832
+
+# ==============================================================================
+# Disease/project settings
+# ==============================================================================
+
+analysis:
+  disease_id: "TB"
+  positive_class: "case"
+  negative_class: "control"
+
+  # Minimum total count required for a gene to be retained before transformation.
+  min_gene_count: 10
+
+  # Number of selected features per feature-selection framework.
+  top_n_features: 50
+
+  # Number of bootstrap iterations used in diagnostic plots.
+  bootstrap_iterations: 500
+
+  # Number of permutations used in final feature-importance analysis.
+  feature_importance_permutations: 50
+
+# ==============================================================================
+# Expected input paths (TB used as an example)
+# ==============================================================================
+
+paths:
+  raw_dir: "data/raw/TB"
+  counts_dir: "data/raw/TB/counts"
+  metadata_file: "data/raw/TB/metadata.rds"
+
+  processed_dir: "data/processed/TB"
+
+  hc_results_dir: "results/01_hc_representation_diagnostics/TB"
+  fsf_results_dir: "results/02_fsf_stability_conditioning/TB"
+  benchmark_results_dir: "results/03_benchmarking_ncv_ccv/TB"
+  reliability_results_dir: "results/04_statistical_biological_reliability/TB"
+
+# ==============================================================================
+# Experimental data requirements
+# ==============================================================================
+
+experimental data:
+  sample_col: "sample_id"
+  cohort_col: "cohort"
+  outcome_col: "outcome"
+
+  # The cohort column is used as the batch/grouping variable in harmonisation
+  # diagnostics and as the held-out unit in cross-cohort validation.
+  require_cohort: true
+
+  # The outcome column must contain exactly two classes matching:
+  #   analysis.positive_class
+  #   analysis.negative_class
+  require_binary_outcome: true
+
+# ==============================================================================
+# Harmonisation and preprocessing configurations
+# ==============================================================================
+
+standardisation + batch effect correction:
+  methods:
+    - "RAW_counts"
+    - "VST_only"
+    - "VST_ComBat"
+    - "VST_ComBatRef"
+    - "VST_SVA"
+    - "ComBatSeq_log1p"
+
+  display_labels:
+    RAW_counts: "RAW counts"
+    VST_only: "VST only"
+    VST_ComBat: "VST + ComBat"
+    VST_ComBatRef: "VST + ComBat-Ref"
+    VST_SVA: "VST + SVA"
+    ComBatSeq_log1p: "ComBat-Seq + log1p"
+
+  # If left empty, the largest cohort will be used as the ComBat reference batch.
+  reference_batch: null
+
+# ==============================================================================
+# Feature-selection filters
+# ==============================================================================
+
+feature_selection:
+  filters:
+    - "anova"
+    - "auc"
+    - "importance"
+    - "boruta"
+    - "cmim"
+    - "mrmr"
+    - "information_gain"
+    - "variance"
+
+  display_labels:
+    anova: "ANOVA"
+    auc: "AUC"
+    importance: "RF_Imp"
+    boruta: "Boruta"
+    cmim: "CMIM"
+    mrmr: "mRMR"
+    information_gain: "Info_Gain"
+    variance: "RF_Var"
+
+  hybrids:
+    HybridA:
+      label: "Hybrid A"
+      description: "Hybrid feature set combining complementary relevance assumptions."
+    HybridB:
+      label: "Hybrid B"
+      description: "Hybrid feature set combining marginal, ranking and information-theoretic assumptions."
+
+# ==============================================================================
+# Benchmarking settings
+# ==============================================================================
+
+benchmarking:
+  learners:
+    - "Featureless"
+    - "Naive Bayes"
+    - "Linear SVM"
+    - "RBF SVM"
+    - "C50"
+    - "Random Forest"
+    - "XGBoost"
+    - "LightGBM"
+
+  metrics:
+    - "AUROC"
+    - "BACC"
+    - "Sensitivity"
+    - "Specificity"
+    - "Brier"
+
+  repeated_cv:
+    folds: 5
+    repeats: 2
+
+# ==============================================================================
+# Nested cross-validation settings
+# ==============================================================================
+
+nested_cv:
+  outer_folds: 5
+  inner_folds: 5
+  tuning_evals: 10
+  optimisation_metric: "classif.bacc"
+
+  tuned_learners:
+    - "RBF SVM"
+    - "Random Forest"
+    - "LightGBM"
+
+  class_balancing:
+    - "NBA"
+    - "Upsample"
+    - "SMOTE"
+    - "Downsample"
+
+# ==============================================================================
+# Cross-cohort validation settings
+# ==============================================================================
+
+cross_cohort_validation:
+  enabled: true
+  holdout_column: "cohort"
+
+  selected_configurations:
+    - "RBF SVM | VST + SVA | Info_Gain | SMOTE"
+    - "Random Forest | VST + SVA | Info_Gain | SMOTE"
+    - "LightGBM | VST + SVA | Info_Gain | SMOTE"
+    - "Random Forest | VST + SVA | Hybrid A | SMOTE"
+
+# ==============================================================================
+# Final reliability analysis
+# ==============================================================================
+
+reliability:
+  final_task_dir: "data/processed/TB/tasks/final_tasks"
+
+  selected_final_models:
+    - role: "Champion"
+      label: "RBF SVM | VST + SVA | Info_Gain | SMOTE"
+      learner_key: "RBF_SVM"
+      task_key: "TB_VST_SVA_information_gain_SMOTE"
+
+    - role: "Comparator"
+      label: "LightGBM | VST + SVA | Info_Gain | SMOTE"
+      learner_key: "LightGBM"
+      task_key: "TB_VST_SVA_information_gain_SMOTE"
+
+    - role: "Comparator"
+      label: "Random Forest | VST + SVA | Info_Gain | SMOTE"
+      learner_key: "RandomForest"
+      task_key: "TB_VST_SVA_information_gain_SMOTE"
+
+    - role: "Comparator"
+      label: "Random Forest | VST + SVA | Hybrid A | SMOTE"
+      learner_key: "RandomForest"
+      task_key: "TB_VST_SVA_HybridA_SMOTE"
+
+# ==============================================================================
+# Plotting defaults
+# ==============================================================================
+
+plotting:
+  dpi: 600
+  width_mm: 180
+  height_mm: 140
+  export_png: true
+  export_pdf: true
+
+  palette:
+    red: "#E41A1C"
+    blue: "#377EB8"
+    green: "#4DAF4A"
+    purple: "#984EA3"
+    orange: "#FF7F00"
+    black: "#000000"
+```
