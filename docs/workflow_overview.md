@@ -1,7 +1,7 @@
 ````markdown
 # TRACE-Omics workflow overview
 
-**TRACE-Omics** stands for **Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics machine learning**.
+TRACE-Omics stands for Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics machine learning.
 
 The repository implements a staged workflow for evaluating robust and generalisable transcriptomic machine learning using multi-cohort RNA-seq data. The central assumption is that reliable omics learning cannot be established from high internal performance alone. Instead, each stage evaluates whether disease-associated signal is preserved, stabilised, learned, transported, and biologically interpretable.
 
@@ -9,7 +9,7 @@ The repository implements a staged workflow for evaluating robust and generalisa
 
 TRACE-Omics evaluates transcriptomic learning as a sequence of evidence-generating stages:
 
-```text
+```
 Representation quality
         ↓
 Feature-space stability and conditioning
