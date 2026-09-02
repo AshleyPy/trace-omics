@@ -1,15 +1,18 @@
-```r
 # ==============================================================================
 # TRACE-Omics
-# Utility functions for input/output, task handling, configuration and validation
+# Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics learning
+# Core utility functions for configuration, validation, task handling and audit
 #
 # File:
 #   R/utils_io.R
 #
 # Purpose:
-#   This file contains reusable helper functions used across the TRACE-Omics
-#   workflow. The functions are intentionally lightweight and general so that the
-#   main scripts remain easier to read, audit and adapt.
+#   Reusable helpers shared across the four TRACE-Omics analytical stages:
+#   representation specification, feature-set characterisation, model development
+#   and optimisation, and generalisation and reliability assessment. The helpers
+#   keep sample identity, cohort structure, feature order, configuration state and
+#   prediction outputs explicit so that the controlled perturbation experiments can
+#   be reproduced and audited consistently.
 # ==============================================================================
 
 # ==============================================================================
@@ -183,6 +186,38 @@ print_config_summary <- function(config) {
   message("  Negative class:  ", negative_class)
 
   invisible(config)
+}
+
+trace_stages <- function() {
+  c(
+    "Representation specification",
+    "Feature-set characterisation",
+    "Model development and optimisation",
+    "Generalisation and reliability assessment"
+  )
+}
+
+trace_experiments <- function() {
+  c(
+    "Sample support",
+    "Disease composition",
+    "Cohort composition",
+    "Model architecture"
+  )
+}
+
+print_trace_overview <- function() {
+  message("TRACE-Omics analytical stages")
+  for (i in seq_along(trace_stages())) {
+    message("  ", i, ". ", trace_stages()[[i]])
+  }
+
+  message("TRACE-Omics controlled perturbations")
+  for (i in seq_along(trace_experiments())) {
+    message("  ", i, ". ", trace_experiments()[[i]])
+  }
+
+  invisible(TRUE)
 }
 
 # ==============================================================================
@@ -417,7 +452,117 @@ align_matrix_list <- function(mat_list,
 }
 
 # ==============================================================================
-# 6. mlr3 task helpers
+# 6. Leakage-control and alignment audits
+# ==============================================================================
+
+assert_disjoint_samples <- function(development_ids,
+                                    evaluation_ids,
+                                    development_label = "development",
+                                    evaluation_label = "evaluation") {
+  development_ids <- unique(as.character(development_ids))
+  evaluation_ids <- unique(as.character(evaluation_ids))
+
+  overlap <- intersect(development_ids, evaluation_ids)
+
+  if (length(overlap) > 0) {
+    stop(
+      "Sample leakage detected between ",
+      development_label,
+      " and ",
+      evaluation_label,
+      ": ",
+      paste(head(overlap, 10), collapse = ", "),
+      if (length(overlap) > 10) " ..." else "",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+assert_feature_alignment <- function(reference_matrix,
+                                     target_matrix,
+                                     reference_label = "development",
+                                     target_label = "evaluation") {
+  reference_matrix <- as.matrix(reference_matrix)
+  target_matrix <- as.matrix(target_matrix)
+
+  reference_features <- rownames(reference_matrix)
+  target_features <- rownames(target_matrix)
+
+  if (is.null(reference_features) || is.null(target_features)) {
+    stop("Both matrices require row names for feature-alignment auditing.", call. = FALSE)
+  }
+
+  if (!identical(reference_features, target_features)) {
+    stop(
+      "Feature order differs between ",
+      reference_label,
+      " and ",
+      target_label,
+      ".",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+assert_binary_outcome <- function(metadata,
+                                  outcome_col = "outcome",
+                                  negative_class = "control",
+                                  positive_class = "case") {
+  check_required_columns(metadata, outcome_col, "Metadata")
+
+  observed <- unique(as.character(metadata[[outcome_col]]))
+  expected <- c(negative_class, positive_class)
+
+  unexpected <- setdiff(observed, expected)
+
+  if (length(unexpected) > 0) {
+    stop(
+      "Unexpected outcome level(s): ",
+      paste(unexpected, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  if (!all(expected %in% observed)) {
+    stop(
+      "Both outcome classes must be present: ",
+      paste(expected, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+assert_predictor_isolation <- function(feature_names,
+                                       forbidden = c("sample_id", "cohort", "outcome", "disease")) {
+  leaked <- intersect(as.character(feature_names), forbidden)
+
+  if (length(leaked) > 0) {
+    stop(
+      "Non-molecular field(s) detected in predictor space: ",
+      paste(leaked, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+write_sample_manifest <- function(sample_ids, path, label = "sample_id") {
+  sample_ids <- unique(as.character(sample_ids))
+  manifest <- data.frame(sample_id = sample_ids, stringsAsFactors = FALSE)
+  names(manifest)[[1]] <- label
+  safe_write_csv(manifest, path)
+  invisible(path)
+}
+
+# ==============================================================================
+# 7. mlr3 task helpers
 # ==============================================================================
 
 is_mlr3_task <- function(x) {
@@ -490,82 +635,121 @@ task_to_dataframe <- function(task) {
 }
 
 # ==============================================================================
-# 7. Label parsing helpers
+# 8. Analytical label helpers
 # ==============================================================================
 
-clean_hc_label <- function(x) {
+clean_representation_label <- function(x) {
+  x <- as.character(x)
+
   dplyr::case_when(
-    stringr::str_detect(x, "VST_ComBatRef|ComBatRef") ~ "VST + ComBat-Ref",
-    stringr::str_detect(x, "VST_ComBat|ComBat") ~ "VST + ComBat",
-    stringr::str_detect(x, "VST_SVA|SVA") ~ "VST + SVA",
-    stringr::str_detect(x, "ComBatSeq_log1p") ~ "ComBat-Seq + log1p",
-    stringr::str_detect(x, "VST_only|VST only") ~ "VST only",
-    TRUE ~ as.character(x)
+    stringr::str_detect(x, "VST_ComBatRef|ComBat[-_ ]?Ref") ~ "VST + ComBat-Ref",
+    stringr::str_detect(x, "ComBatSeq_log1p|ComBat[-_ ]?Seq.*log1p") ~ "ComBat-Seq + log1p",
+    stringr::str_detect(x, "VST_fSVA|VST_SVA|fSVA|SVA") ~ "VST + fSVA",
+    stringr::str_detect(x, "VST_ComBat|VST \+ ComBat|ComBat") ~ "VST + ComBat",
+    stringr::str_detect(x, "VST_only|VST only|VST-only") ~ "VST only",
+    stringr::str_detect(x, "RAW_counts|Raw counts|raw counts") ~ "Raw counts",
+    stringr::str_detect(x, "log2\(CPM\+1\)|logCPM|CPM") ~ "log2(CPM+1)",
+    TRUE ~ x
   )
 }
 
-clean_fsf_label <- function(x) {
+clean_feature_selection_label <- function(x) {
+  x <- as.character(x)
+
   dplyr::case_when(
     stringr::str_detect(x, "HybridA|Hybrid A") ~ "Hybrid A",
     stringr::str_detect(x, "HybridB|Hybrid B") ~ "Hybrid B",
-    stringr::str_detect(x, "information_gain|Info_Gain") ~ "Info_Gain",
+    stringr::str_detect(x, "information_gain|Info_Gain|Information gain") ~ "Information gain",
     stringr::str_detect(x, "boruta|Boruta") ~ "Boruta",
     stringr::str_detect(x, "cmim|CMIM") ~ "CMIM",
     stringr::str_detect(x, "mrmr|mRMR") ~ "mRMR",
     stringr::str_detect(x, "anova|ANOVA") ~ "ANOVA",
-    stringr::str_detect(x, "auc|AUC") ~ "AUC",
-    stringr::str_detect(x, "importance|RF_Imp") ~ "RF_Imp",
-    stringr::str_detect(x, "variance|RF_Var") ~ "RF_Var",
+    stringr::str_detect(x, "\bauc\b|\bAUC\b") ~ "AUC",
+    stringr::str_detect(x, "importance|RF_Imp|RF importance") ~ "RF importance",
+    stringr::str_detect(x, "variance|RF_Var|RF variance") ~ "RF variance",
     TRUE ~ NA_character_
   )
 }
 
-clean_cba_label <- function(x) {
+clean_class_handling_label <- function(x) {
+  x <- as.character(x)
+
   dplyr::case_when(
-    stringr::str_detect(x, "SMOTE$|SMOTE") ~ "SMOTE",
-    stringr::str_detect(x, "Upsample$|Upsample") ~ "Upsample",
-    stringr::str_detect(x, "Downsample$|Downsample") ~ "Downsample",
-    stringr::str_detect(x, "NBA$|NBA") ~ "NBA",
-    TRUE ~ "NBA"
+    stringr::str_detect(x, "SMOTE") ~ "SMOTE",
+    stringr::str_detect(x, "Upsample|UpSample") ~ "Upsample",
+    stringr::str_detect(x, "Downsample|DownSample") ~ "Downsample",
+    stringr::str_detect(x, "Weighted|Class weighted|class_weight") ~ "Class weighted",
+    stringr::str_detect(x, "NBA|NoCBA|None|Unweighted") ~ "None",
+    TRUE ~ "None"
   )
 }
 
-clean_mla_label <- function(x) {
+clean_learner_label <- function(x) {
+  x <- as.character(x)
+
   dplyr::case_when(
     stringr::str_detect(x, "Featureless") ~ "Featureless",
-    stringr::str_detect(x, "Naive") ~ "Naive Bayes",
+    stringr::str_detect(x, "Naive|naive_bayes") ~ "Naive Bayes",
     stringr::str_detect(x, "Linear_SVM|Linear SVM") ~ "Linear SVM",
     stringr::str_detect(x, "RBF_SVM|RBF SVM") ~ "RBF SVM",
-    stringr::str_detect(x, "RandomForest|Random Forest") ~ "Random Forest",
-    stringr::str_detect(x, "LightGBM") ~ "LightGBM",
-    stringr::str_detect(x, "XGBoost") ~ "XGBoost",
-    stringr::str_detect(x, "C50|C5") ~ "C50",
-    TRUE ~ as.character(x)
+    stringr::str_detect(x, "RandomForest|Random Forest|ranger") ~ "Random Forest",
+    stringr::str_detect(x, "LightGBM|lightgbm") ~ "LightGBM",
+    stringr::str_detect(x, "TabPFN|tabpfn") ~ "TabPFN",
+    stringr::str_detect(x, "XGBoost|xgboost") ~ "XGBoost",
+    stringr::str_detect(x, "C50|C5\.0|C5") ~ "C5.0",
+    TRUE ~ x
   )
 }
 
-make_configuration_label <- function(MLA, HC, FSF, CBA = "NBA") {
+make_configuration_label <- function(learner,
+                                     representation,
+                                     feature_selection,
+                                     class_handling = "None") {
   paste(
-    clean_mla_label(MLA),
-    clean_hc_label(HC),
-    clean_fsf_label(FSF),
-    clean_cba_label(CBA),
+    clean_learner_label(learner),
+    clean_representation_label(representation),
+    clean_feature_selection_label(feature_selection),
+    clean_class_handling_label(class_handling),
     sep = " | "
   )
 }
 
 parse_task_id_trace <- function(task_id) {
+  representation <- clean_representation_label(task_id)
+  feature_selection <- clean_feature_selection_label(task_id)
+  class_handling <- clean_class_handling_label(task_id)
+
   data.frame(
     task_id = task_id,
-    HC = clean_hc_label(task_id),
-    FSF = clean_fsf_label(task_id),
-    CBA = clean_cba_label(task_id),
+    representation = representation,
+    feature_selection = feature_selection,
+    class_handling = class_handling,
+    HC = representation,
+    FSF = feature_selection,
+    CBA = class_handling,
     stringsAsFactors = FALSE
   )
 }
 
+# Backward-compatible aliases retained for earlier TRACE-Omics scripts.
+clean_hc_label <- function(x) {
+  clean_representation_label(x)
+}
+
+clean_fsf_label <- function(x) {
+  clean_feature_selection_label(x)
+}
+
+clean_cba_label <- function(x) {
+  clean_class_handling_label(x)
+}
+
+clean_mla_label <- function(x) {
+  clean_learner_label(x)
+}
+
 # ==============================================================================
-# 8. Prediction-table helpers
+# 9. Prediction-table helpers
 # ==============================================================================
 
 find_prob_case_col <- function(dt) {
@@ -601,7 +785,7 @@ standardise_prediction_table <- function(dt,
 }
 
 # ==============================================================================
-# 9. Miscellaneous helpers
+# 10. Miscellaneous helpers
 # ==============================================================================
 
 message_section <- function(title) {
@@ -624,7 +808,31 @@ set_trace_seed <- function(seed = 7832) {
   invisible(seed)
 }
 
+make_trace_subseed <- function(seed = 7832, ...) {
+  keys <- paste(..., collapse = "|")
+  ints <- utf8ToInt(keys)
+
+  if (length(ints) == 0) {
+    return(as.integer(seed))
+  }
+
+  offset <- sum(ints * seq_along(ints))
+  subseed <- as.integer((as.double(seed) + offset) %% .Machine$integer.max)
+
+  if (subseed <= 0) {
+    subseed <- as.integer(seed)
+  }
+
+  subseed
+}
+
+set_trace_subseed <- function(seed = 7832, ...) {
+  subseed <- make_trace_subseed(seed, ...)
+  set.seed(subseed)
+  invisible(subseed)
+}
+
 # ==============================================================================
-# End of R/utils_io.R
+# End of TRACE-Omics R/utils_io.R
 # ==============================================================================
-```
+
