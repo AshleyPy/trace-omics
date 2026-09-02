@@ -1,24 +1,44 @@
-```yaml
 # ==============================================================================
 # TRACE-Omics example configuration
+# Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics learning
 # ==============================================================================
-# This file defines the main analysis settings used by the TRACE-Omics workflow.
-# Copy this file, rename it for your disease/project, and edit the values below.
+#
+# Purpose
+# -------
+# This file defines the reproducibility-critical settings used across the
+# TRACE-Omics framework. Copy it to a disease- or experiment-specific file and
+# change only values that are intentionally part of that analysis.
 #
 # Example:
 #   config/TB_config.yml
-#   config/UC_config.yml
 #   config/RA_config.yml
+#   config/UC_config.yml
+#   config/CD_config.yml
+#   config/T1D_config.yml
 #
-# The scripts are designed to work with relative paths so that the repository can
-# be cloned and run on another machine without editing private local directories.
+# All paths are repository-relative. Machine-specific absolute paths should be
+# supplied outside version control where required.
 # ==============================================================================
 
 project:
   name: "TRACE-Omics"
-  description: "Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics machine learning"
+  description: "Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics learning"
   version: "0.1.0"
   seed: 7832
+  positive_class: "case"
+  negative_class: "control"
+
+  stages:
+    - "representation_specification"
+    - "feature_set_characterisation"
+    - "model_development_optimisation"
+    - "generalisation_reliability"
+
+  experiments:
+    - "sample_support"
+    - "disease_composition"
+    - "cohort_composition"
+    - "model_architecture"
 
 # ==============================================================================
 # Disease/project settings
@@ -26,23 +46,22 @@ project:
 
 analysis:
   disease_id: "TB"
-  positive_class: "case"
-  negative_class: "control"
 
-  # Minimum total count required for a gene to be retained before transformation.
+  sample_col: "sample_id"
+  cohort_col: "cohort"
+  outcome_col: "outcome"
+
+  require_cohort: true
+  require_binary_outcome: true
+
+  # Minimum total development-set count used by count-based filtering.
   min_gene_count: 10
 
-  # Number of selected features per feature-selection framework.
+  # Default feature-set size used where an experiment does not override it.
   top_n_features: 50
 
-  # Number of bootstrap iterations used in diagnostic plots.
-  bootstrap_iterations: 500
-
-  # Number of permutations used in final feature-importance analysis.
-  feature_importance_permutations: 50
-
 # ==============================================================================
-# Expected input paths (TB used as an example)
+# Repository-relative paths
 # ==============================================================================
 
 paths:
@@ -51,56 +70,136 @@ paths:
   metadata_file: "data/raw/TB/metadata.rds"
 
   processed_dir: "data/processed/TB"
+  manifests_dir: "data/processed/TB/manifests"
+  model_objects_dir: "data/processed/TB/model_objects"
 
-  hc_results_dir: "results/01_hc_representation_diagnostics/TB"
-  fsf_results_dir: "results/02_fsf_stability_conditioning/TB"
-  benchmark_results_dir: "results/03_benchmarking_ncv_ccv/TB"
-  reliability_results_dir: "results/04_statistical_biological_reliability/TB"
+  stage_results:
+    representation_specification: "results/01_representation_specification/TB"
+    feature_set_characterisation: "results/02_feature_set_characterisation/TB"
+    model_development_optimisation: "results/03_model_development_optimisation/TB"
+    generalisation_reliability: "results/04_generalisation_reliability/TB"
 
-# ==============================================================================
-# Experimental data requirements
-# ==============================================================================
+  experiment_results:
+    sample_support: "results/experiments/01_sample_support/TB"
+    disease_composition: "results/experiments/02_disease_composition"
+    cohort_composition: "results/experiments/03_cohort_composition/TB"
+    model_architecture: "results/experiments/04_model_architecture/TB"
 
-experimental data:
-  sample_col: "sample_id"
-  cohort_col: "cohort"
-  outcome_col: "outcome"
-
-  # The cohort column is used as the batch/grouping variable in harmonisation
-  # diagnostics and as the held-out unit in cross-cohort validation.
-  require_cohort: true
-
-  # The outcome column must contain exactly two classes matching:
-  #   analysis.positive_class
-  #   analysis.negative_class
-  require_binary_outcome: true
+  audit_dir: "results/audit/TB"
+  session_info_dir: "results/session_info/TB"
 
 # ==============================================================================
-# Harmonisation and preprocessing configurations
+# Input and harmonisation requirements
 # ==============================================================================
 
-standardisation + batch effect correction:
+inputs:
+  count_orientation: "genes_by_samples"
+  gene_identifier: "HGNC_symbol"
+  preserve_repository_ids: true
+
+  alignment:
+    require_unique_sample_ids: true
+    require_unique_gene_ids: true
+    require_exact_sample_order_after_matching: true
+    require_exact_feature_order_before_prediction: true
+
+  harmonisation:
+    intersect_genes_within_disease: true
+    retain_raw_count_matrix_as_canonical_input: true
+    derive_representations_from_canonical_counts: true
+
+# ==============================================================================
+# Development/held-out partition
+# ==============================================================================
+
+partitioning:
+  development_fraction: 0.80
+  held_out_fraction: 0.20
+  stratify_by:
+    - "cohort"
+    - "outcome"
+  write_sample_manifests: true
+  lock_manifests_after_creation: true
+
+# ==============================================================================
+# Transcriptomic representations
+# ==============================================================================
+
+representations:
   methods:
     - "RAW_counts"
     - "VST_only"
     - "VST_ComBat"
     - "VST_ComBatRef"
-    - "VST_SVA"
+    - "VST_fSVA"
     - "ComBatSeq_log1p"
 
   display_labels:
-    RAW_counts: "RAW counts"
+    RAW_counts: "Raw counts"
     VST_only: "VST only"
     VST_ComBat: "VST + ComBat"
     VST_ComBatRef: "VST + ComBat-Ref"
-    VST_SVA: "VST + SVA"
+    VST_fSVA: "VST + fSVA"
     ComBatSeq_log1p: "ComBat-Seq + log1p"
 
-  # If left empty, the largest cohort will be used as the ComBat reference batch.
-  reference_batch: null
+  vst:
+    blind: false
+    fit_on_training_only: true
+    save_geometric_means: true
+    save_dispersion_function: true
+
+  fsva:
+    fit_on_training_only: true
+    num_sv_method: "be"
+    projection_method: "fast"
+    protect_outcome: true
+    remove_effectively_invariant_genes: true
+    save_fitted_state: true
+
+  combat:
+    batch_variable: "cohort"
+    empirical_bayes: true
+    parametric: true
+    fit_on_training_only: true
+    reference_batch: null
+    reference_selection_rule: "largest_eligible_development_cohort"
+    save_fitted_state: true
+
+  combat_seq:
+    batch_variable: "cohort"
+    biological_group: "outcome"
+    full_mod: true
+    shrink: false
+    shrink_disp: false
+    post_transform: "log1p"
+    reconstruct_within_training_partition: true
 
 # ==============================================================================
-# Feature-selection filters
+# Representation diagnostics
+# ==============================================================================
+
+representation_diagnostics:
+  pca:
+    center: true
+    scale: true
+    remove_nonfinite_or_zero_sd_genes: true
+
+  silhouette:
+    distance: "euclidean"
+    evaluate_groupings:
+      - "cohort"
+      - "outcome"
+    near_maximum_fraction: 0.95
+
+  residual_sequencing_depth:
+    correlation: "spearman"
+    calculate_pooled: true
+    calculate_within_cohort: true
+    minimum_observations: 3
+    p_adjust_method: "BH"
+
+# ==============================================================================
+# Feature selection and feature-space characterisation
 # ==============================================================================
 
 feature_selection:
@@ -117,109 +216,463 @@ feature_selection:
   display_labels:
     anova: "ANOVA"
     auc: "AUC"
-    importance: "RF_Imp"
+    importance: "RF importance"
     boruta: "Boruta"
     cmim: "CMIM"
     mrmr: "mRMR"
-    information_gain: "Info_Gain"
-    variance: "RF_Var"
+    information_gain: "Information gain"
+    variance: "RF variance"
 
-  hybrids:
-    HybridA:
-      label: "Hybrid A"
-      description: "Hybrid feature set combining complementary relevance assumptions."
-    HybridB:
-      label: "Hybrid B"
-      description: "Hybrid feature set combining marginal, ranking and information-theoretic assumptions."
+  default_top_n: 50
+  deterministic_tie_break: "gene_identifier"
+  save_full_rankings: true
+  save_selected_gene_vectors: true
+  preserve_original_gene_symbols: true
+
+feature_set_characterisation:
+  agreement:
+    metric: "jaccard"
+    top_n: 50
+    common_scale:
+      min: 0
+      max: 1
+
+  conditioning:
+    metrics:
+      - "mean_vif"
+      - "max_vif"
+      - "effective_rank"
+    bootstrap_iterations: 500
+    bootstrap_seed: 7832
+    confidence_level: 0.95
+    minimum_finite_bootstraps: 20
 
 # ==============================================================================
-# Benchmarking settings
+# Common performance metrics
 # ==============================================================================
 
-benchmarking:
-  learners:
-    - "Featureless"
-    - "Naive Bayes"
-    - "Linear SVM"
-    - "RBF SVM"
-    - "C50"
-    - "Random Forest"
-    - "XGBoost"
-    - "LightGBM"
-
+performance:
   metrics:
     - "AUROC"
+    - "AUPRC"
     - "BACC"
     - "Sensitivity"
     - "Specificity"
     - "Brier"
 
-  repeated_cv:
-    folds: 5
-    repeats: 2
+  roc_ci_method: "delong"
+  interpret_auprc_relative_to_prevalence: true
+
+  curve_uncertainty:
+    bootstrap_iterations: 2000
+    stratified: true
+    grid_points: 101
 
 # ==============================================================================
-# Nested cross-validation settings
+# Experiment 1: sample-support perturbation
 # ==============================================================================
 
-nested_cv:
-  outer_folds: 5
-  inner_folds: 5
-  tuning_evals: 10
-  optimisation_metric: "classif.bacc"
+sample_support_experiment:
+  enabled: true
+  diseases:
+    - "TB"
+    - "RA"
+    - "UC"
+    - "CD"
 
-  tuned_learners:
+  equal_size:
+    total_n: 82
+    cases: 41
+    controls: 41
+    sampling_seed: 7832
+    preserve_cohort_representation: true
+
+  frozen_partition:
+    development_n: 66
+    development_cases: 33
+    development_controls: 33
+    held_out_n: 16
+    held_out_cases: 8
+    held_out_controls: 8
+
+  representations:
+    - "VST_fSVA"
+    - "VST_ComBatRef"
+    - "ComBatSeq_log1p"
+
+  feature_selection:
+    - "information_gain"
+    - "importance"
+    - "boruta"
+    - "mrmr"
+    - "cmim"
+  top_n_features: 50
+
+  learners:
+    - "Featureless"
+    - "Naive Bayes"
+    - "Linear SVM"
     - "RBF SVM"
+    - "C5.0"
     - "Random Forest"
     - "LightGBM"
+    - "XGBoost"
 
-  class_balancing:
-    - "NBA"
-    - "Upsample"
-    - "SMOTE"
-    - "Downsample"
+  repeated_cv:
+    folds: 10
+    repeats: 2
+    fit_representation_inside_fold: true
+    fit_feature_selection_inside_fold: true
+
+  representation_sensitivity:
+    learner: "LightGBM"
+    feature_selection: "importance"
+    top_n_features: 50
+    rf_importance_trees: 300
+
+  exact_permutation:
+    enabled: true
+    enumerate_all_balanced_label_allocations: true
+    expected_allocations_per_disease_representation: 12870
+    alternative: "greater_or_equal"
+    p_adjust_method: "BH"
+
+  paired_delong:
+    enabled: true
+    paired: true
+    alternative: "two.sided"
+    p_adjust_method: "BH"
+
+  development_to_test_bootstrap:
+    iterations: 5000
+    seed: 7832
+    stratified_held_out_resampling: true
 
 # ==============================================================================
-# Cross-cohort validation settings
+# Experiment 2: disease-composition / cross-disease transfer
 # ==============================================================================
 
-cross_cohort_validation:
+disease_composition_experiment:
   enabled: true
-  holdout_column: "cohort"
 
-  selected_configurations:
-    - "RBF SVM | VST + SVA | Info_Gain | SMOTE"
-    - "Random Forest | VST + SVA | Info_Gain | SMOTE"
-    - "LightGBM | VST + SVA | Info_Gain | SMOTE"
-    - "Random Forest | VST + SVA | Hybrid A | SMOTE"
+  diseases:
+    - "TB"
+    - "RA"
+    - "UC"
+    - "CD"
+    - "T1D"
+
+  common_feature_space:
+    derive_from_all_five_diseases: true
+    expected_gene_count: 4450
+    hold_constant_between_model_a_and_b: true
+    audit_exact_gene_alignment: true
+
+  model_a:
+    development_diseases:
+      - "RA"
+      - "UC"
+      - "CD"
+      - "T1D"
+    expected_development_n: 1413
+
+  model_b:
+    development_diseases:
+      - "TB"
+      - "RA"
+      - "UC"
+      - "CD"
+      - "T1D"
+    expected_development_n: 1736
+
+  representation: "VST_fSVA"
+
+  feature_selection:
+    candidate_methods:
+      - "mrmr"
+      - "cmim"
+    top_n_features: 50
+
+  class_handling:
+    candidate_methods:
+      - "none"
+      - "SMOTE"
+    smote_training_only: true
+    smote_within_disease_cohort_strata: true
+
+  tuned_learners:
+    - "Random Forest"
+    - "LightGBM"
+    - "XGBoost"
+    - "RBF SVM"
+
+  nested_cv:
+    outer_folds: 5
+    inner_folds: 10
+    tuning_evaluations: 20
+    tuner: "mbo"
+    optimisation_metric: "classif.bacc"
+    search_space_file: "config/hyperparameter_search_spaces.yml"
+
+  lodo:
+    enabled: true
+    source_disease_count: 4
+    target_disease_count: 1
+    representation: "VST_fSVA"
+    feature_selection: "mrmr"
+    top_n_features: 50
+    class_handling: "none"
+    learner: "LightGBM"
+    fit_all_data_dependent_steps_on_source_only: true
+
+  locked_tb_comparison:
+    model_a_label: "TB-naive"
+    model_b_label: "ALL5"
+    threshold_method: "youden"
+    paired_delong: true
+    roc_bootstrap_iterations: 2000
+    interpret_as_joint_target_exposure_and_sample_support_effect: true
+
+  permutation_importance:
+    permutations_per_gene: 50
+    seed: 7832
+    metric: "delta_AUROC"
+
+  reactome:
+    enabled: true
+    top_positive_genes: 25
+    min_pathway_size: 5
+    max_pathway_size: 500
+    p_adjust_method: "BH"
+    background: "common_4450_gene_universe"
 
 # ==============================================================================
-# Final reliability analysis
+# Experiment 3: cohort-composition / disease-specific transportability
 # ==============================================================================
 
-reliability:
-  final_task_dir: "data/processed/TB/tasks/final_tasks"
+cohort_composition_experiment:
+  enabled: true
 
-  selected_final_models:
-    - role: "Champion"
-      label: "RBF SVM | VST + SVA | Info_Gain | SMOTE"
-      learner_key: "RBF_SVM"
-      task_key: "TB_VST_SVA_information_gain_SMOTE"
+  partition:
+    development_fraction: 0.80
+    held_out_fraction: 0.20
+    stratify_by:
+      - "cohort"
+      - "outcome"
+    seed: 7832
+    save_manifest: true
 
-    - role: "Comparator"
-      label: "LightGBM | VST + SVA | Info_Gain | SMOTE"
-      learner_key: "LightGBM"
-      task_key: "TB_VST_SVA_information_gain_SMOTE"
+  candidate_representations:
+    - "VST_only"
+    - "log2_CPM_plus_1"
 
-    - role: "Comparator"
-      label: "Random Forest | VST + SVA | Info_Gain | SMOTE"
-      learner_key: "RandomForest"
-      task_key: "TB_VST_SVA_information_gain_SMOTE"
+  initial_candidate_learners:
+    - "RBF SVM"
+    - "Random Forest"
 
-    - role: "Comparator"
-      label: "Random Forest | VST + SVA | Hybrid A | SMOTE"
-      learner_key: "RandomForest"
-      task_key: "TB_VST_SVA_HybridA_SMOTE"
+  final_learner:
+    name: "Random Forest"
+    feature_selection: "importance"
+    rf_importance_trees: 1000
+    classifier_trees: 250
+    min_node_size: 5
+    mtry_rule: "floor_sqrt_p"
+
+  loco_optimisation:
+    feature_counts:
+      - 25
+      - 50
+      - 100
+    class_weighting:
+      - "unweighted"
+      - "class_weighted"
+    fit_representation_on_source_only: true
+    fit_feature_selection_on_source_only: true
+
+    selection_order:
+      - "highest_worst_cohort_AUROC"
+      - "highest_mean_LOCO_AUROC"
+      - "lowest_LOCO_AUROC_SD"
+      - "highest_mean_LOCO_BACC"
+
+  operating_threshold:
+    source: "development_LOCO_predictions"
+    grid_start: 0.05
+    grid_end: 0.95
+    grid_step: 0.01
+    primary_criterion: "highest_mean_cohort_BACC"
+    secondary_criterion: "highest_worst_cohort_BACC"
+    tie_break: "closest_to_0.50"
+    freeze_before_held_out_evaluation: true
+
+  cohort_evaluation:
+    roc_ci_method: "delong"
+    roc_bootstrap_iterations: 2000
+    pr_bootstrap_iterations: 2000
+    calibration_bins: 6
+    calibration_ci: "exact_binomial"
+    calculate_calibration_intercept: true
+    calculate_calibration_slope: true
+
+  permutation_importance:
+    permutations_per_gene: 100
+    seed: 7832
+    metric: "delta_AUROC"
+
+  ale:
+    max_profile_genes: 6
+    order_by: "permutation_importance"
+    use_held_out_feature_matrix: true
+
+# ==============================================================================
+# Experiment 4: model-architecture perturbation
+# ==============================================================================
+
+model_architecture_experiment:
+  enabled: true
+
+  representation: "log2_CPM_plus_1"
+  feature_selection: "importance"
+  top_n_features: 50
+  feature_selection_learner: "Random Forest"
+
+  architectures:
+    - "LightGBM"
+    - "TabPFN"
+
+  matched_inputs:
+    identical_training_samples: true
+    identical_validation_samples: true
+    identical_selected_genes: true
+    identical_feature_order: true
+
+  lightgbm:
+    class_weight: "balanced"
+    configuration_count: 10
+    configuration_file: "config/lightgbm_architecture_grid.yml"
+
+  tabpfn:
+    version: "0.1.11"
+    use_pretrained_default_classifier: true
+    deterministic_seed: true
+    cuda_where_available: true
+
+  outer_cv:
+    folds: 5
+    retain_pooled_out_of_fold_predictions: true
+
+  performance:
+    roc_ci_method: "delong"
+    roc_bootstrap_iterations: 2000
+    pr_bootstrap_iterations: 2000
+    calibration_bins: 8
+
+  final_evaluation:
+    use_frozen_diagnostic_test: true
+    metrics:
+      - "AUROC"
+      - "AUPRC"
+      - "BACC"
+      - "Sensitivity"
+      - "Specificity"
+      - "Brier"
+
+  serialisation:
+    save_python_models: true
+    save_experiment_state_rds: true
+    save_exact_development_matrix: true
+    save_exact_test_matrix: true
+    save_original_prediction_table: true
+
+    # IMPORTANT:
+    # Chapter 3 specifies a prespecified numerical tolerance for restoration,
+    # but the exact numerical value is absent from the current dissertation
+    # text supplied for this configuration update. Replace null with the exact
+    # value used by the executable restoration script before public release.
+    probability_restore_tolerance: null
+    terminate_if_tolerance_exceeded: true
+
+  molecular_reliability:
+    permutation_importance:
+      permutations_per_gene: 100
+      metric: "delta_AUROC"
+    cross_architecture_concordance:
+      rank_metric: "spearman"
+      top_gene_overlap_metric: "jaccard"
+      top_n_for_jaccard: 20
+    ale:
+      enabled: true
+
+# ==============================================================================
+# Reproducibility controls
+# ==============================================================================
+
+reproducibility:
+  global_seed: 7832
+
+  save:
+    sample_manifests: true
+    fold_assignments: true
+    fitted_preprocessing_states: true
+    feature_score_tables: true
+    selected_gene_vectors: true
+    class_handling_records: true
+    tuning_archives: true
+    prediction_tables: true
+    fold_level_metrics: true
+    statistical_test_outputs: true
+    permutation_distributions: true
+    ale_coordinates: true
+    fitted_model_objects: true
+    session_info: true
+
+  leakage_control:
+    fit_preprocessing_on_training_only: true
+    fit_feature_selection_on_training_only: true
+    fit_class_handling_on_training_only: true
+    fit_tuning_on_development_only: true
+    evaluation_samples_enter_at_prediction_only: true
+    forbid_sample_overlap: true
+    forbid_cohort_as_predictor: true
+    forbid_sample_id_as_predictor: true
+
+  audits:
+    require_exact_sample_alignment: true
+    require_exact_gene_alignment: true
+    require_expected_class_levels: true
+    require_finite_prediction_probabilities: true
+    require_saved_probability_reference_for_restored_models: true
+
+  randomisation:
+    deterministic_subseeds: true
+    subseeed_components:
+      - "disease"
+      - "fold"
+      - "configuration"
+      - "gene"
+      - "permutation"
+
+# ==============================================================================
+# Computational environment
+# ==============================================================================
+
+computational_environment:
+  r:
+    capture_session_info: true
+
+  python:
+    version: "3.10"
+    numpy: "1.22.4"
+    scikit_learn: "1.2.2"
+    lightgbm: "4.6.0"
+    pytorch: "2.4.1"
+    tabpfn: "0.1.11"
+    use_disease_specific_conda_environments: true
+    verify_reticulate_python_before_initialisation: true
+    verify_required_imports: true
+    verify_tabpfn_checkpoint: true
+    predictor_dtype: "float32"
+    cuda_for_tabpfn: true
 
 # ==============================================================================
 # Plotting defaults
@@ -229,8 +682,11 @@ plotting:
   dpi: 600
   width_mm: 180
   height_mm: 140
-  export_png: true
-  export_pdf: true
+
+  export:
+    png: true
+    pdf: true
+    svg: false
 
   palette:
     red: "#E41A1C"
@@ -239,4 +695,3 @@ plotting:
     purple: "#984EA3"
     orange: "#FF7F00"
     black: "#000000"
-```
