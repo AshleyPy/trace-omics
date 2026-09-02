@@ -2,23 +2,58 @@ TRACE-Omics workflow overview
 
 TRACE-Omics stands for Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics learning.
 
-TRACE-Omics is the reproducible analytical framework developed for this dissertation to evaluate when transcriptomic machine-learning relationships remain reliable beyond the data used to estimate them. The framework treats generalisability as an empirical property of the complete learning system and evaluates it through controlled changes in sample support, transcriptomic representation, disease composition, cohort composition and model architecture.
+TRACE-Omics is the reproducible analytical framework developed for this dissertation to evaluate when transcriptomic machine-learning relationships remain reliable beyond the data used to estimate them. The framework treats generalisability as an empirical property of the complete learning system and evaluates it through controlled changes in sample support, transcriptomic representation, disease composition, cohort composition, and model architecture.
 
-The framework was developed using multicohort RNA-seq data from tuberculosis (TB), rheumatoid arthritis (RA), ulcerative colitis (UC), Crohn’s disease (CD) and type 1 diabetes (T1D). All analyses use explicit sample, cohort and outcome provenance so that within-distribution learning can be separated from transfer across biological and study distributions.
+The framework was developed using multicohort RNA-seq data from tuberculosis (TB), rheumatoid arthritis (RA), ulcerative colitis (UC), Crohn's disease (CD), and type 1 diabetes (T1D).
+
+Contents
+
+Conceptual framework
+
+Disease datasets
+
+Input data requirements
+
+Transcriptomic representations
+
+Feature selection and feature-space characterisation
+
+Experiment 1: Sample-support perturbation
+
+Experiment 2: Disease-composition perturbation
+
+Experiment 3: Cohort-composition perturbation
+
+Experiment 4: Model-architecture perturbation
+
+Performance metrics
+
+Reproducibility controls
+
+Repository structure
+
+Recommended execution logic
+
+Computational environment
+
+Public repository guidance
+
+Citation
 
 Conceptual framework
 
 TRACE-Omics is organised into four sequential stages:
 
 Representation specification
-        ↓
+        |
+        v
 Feature-set characterisation
-        ↓
+        |
+        v
 Model development and optimisation
-        ↓
+        |
+        v
 Generalisation and reliability assessment
-
-Each stage answers a distinct question.
 
 TRACE-Omics stage
 
@@ -50,11 +85,11 @@ Does the fitted relationship persist when the target distribution changes?
 
 Frozen held-out evaluation, LODO, LOCO, calibration, permutation importance, ALE, architecture comparison
 
-The framework therefore separates internal learnability from transportability and separates predictive reliability from molecular reliability.
+The framework separates internal learnability from transportability and distinguishes predictive reliability from molecular reliability.
 
 Disease datasets
 
-TRACE-Omics uses publicly available RNA-seq datasets from NCBI GEO and EMBL-EBI resources. The analytical populations used in the dissertation are:
+TRACE-Omics uses publicly available RNA-seq datasets from NCBI GEO and EMBL-EBI resources.
 
 Disease
 
@@ -92,13 +127,19 @@ Leal (GSE123658), Speake (GSE60424)
 
 55
 
-TB required participant-level curation because GC6 and ACS contained longitudinal progression data and Catalysis contained repeated treatment measurements. One eligible observation per participant was retained. UC and CD were constructed as separate binary disease-versus-control tasks even where they originated from the same source studies. Most cohorts used whole-blood RNA-seq; the Sales RA cohort contained monocyte-derived transcriptomic profiles and was retained as an explicitly documented biological shift.
+TB required participant-level curation because GC6 and ACS contained longitudinal progression data and Catalysis contained repeated treatment measurements. One eligible observation per participant was retained.
+
+UC and CD were constructed as separate binary disease-versus-control tasks even where they originated from the same source studies.
+
+Most cohorts used whole-blood RNA-seq. The Sales RA cohort contained monocyte-derived transcriptomic profiles and was retained as an explicitly documented biological shift.
 
 Raw expression data are not distributed with this repository. Users should obtain the public datasets from their original repositories and reconstruct the expected local input structure described below.
 
-Core metadata schema
+Input data requirements
 
-Only variables shared consistently across the source studies were required by the common analytical framework:
+Metadata
+
+The common analytical framework requires:
 
 Column
 
@@ -110,17 +151,17 @@ Unique biological-sample identifier
 
 cohort
 
-Source study/cohort identifier
+Source study or cohort identifier
 
 outcome
 
-Binary response encoded as case or control
+Binary outcome encoded as case or control
 
 Repository accession identifiers should also be retained as provenance fields where available.
 
-Expected count-data structure
+Count data
 
-TRACE-Omics expects genes in rows and samples in columns after import. Cohort-specific identifiers are harmonised to official HGNC symbols before cross-cohort integration.
+TRACE-Omics expects genes in rows and samples in columns after import.
 
 Example:
 
@@ -135,9 +176,9 @@ Each count table should contain a gene-symbol field and one column per sample. M
 
 Gene harmonisation
 
-Independent cohorts may use Ensembl, Entrez or other gene identifiers. TRACE-Omics converts these identifiers to HGNC symbols, identifies the genes shared across the cohorts required for a given analysis, aligns the resulting matrices to an identical gene order and preserves the harmonised raw-count matrix as the canonical molecular input.
+Independent cohorts may use Ensembl, Entrez, or other gene identifiers. TRACE-Omics converts cohort-specific identifiers to HGNC symbols, identifies the genes shared across cohorts required for a given analysis, aligns matrices to an identical gene order, and preserves the harmonised raw-count matrix as the canonical molecular input.
 
-Alternative transcriptomic representations are derived from this canonical object. Cross-disease analyses use a fixed common predictor universe when required to ensure that changes in performance arise from the intended biological perturbation rather than a change in available genes.
+Alternative transcriptomic representations are derived from this canonical object.
 
 Transcriptomic representations
 
@@ -150,9 +191,15 @@ VST + ComBat-Ref
 VST + fSVA
 ComBat-Seq + log1p
 
-Data-dependent transformations are fitted from development or source observations according to the requirements of the corresponding experiment. Frozen VST retains development-derived geometric means and dispersion structure. fSVA learns latent structure from development observations and projects it to evaluation data. ComBat-based methods retain or reconstruct the relevant development-estimated adjustment state where supported by the implementation. ComBat-Seq is reconstructed within the applicable training partition for predictive analyses.
+Data-dependent transformations are fitted from development or source observations according to the corresponding experiment.
 
-Representation quality is characterised using PCA, cohort- and outcome-based silhouette analysis and residual sequencing-depth dependence.
+Representation quality is characterised using:
+
+principal component analysis (PCA);
+
+cohort- and outcome-based silhouette analysis;
+
+residual sequencing-depth dependence.
 
 Feature selection and feature-space characterisation
 
@@ -167,15 +214,11 @@ mRMR
 Information gain
 RF variance
 
-The default comparison uses the 50 highest-ranked genes from each selector. Ranked feature tables and selected gene vectors are retained for audit and downstream analysis.
+The default comparison retains the 50 highest-ranked genes from each selector.
 
-Feature-set agreement is quantified using pairwise Jaccard similarity. Statistical conditioning is characterised using mean VIF, maximum VIF and effective rank, with bootstrap uncertainty where specified. These diagnostics distinguish predictive performance from the reproducibility and redundancy of the molecular solution supporting it.
+Feature-set agreement is quantified using pairwise Jaccard similarity. Statistical conditioning is characterised using mean VIF, maximum VIF, and effective rank, with bootstrap uncertainty where specified.
 
-Controlled experiments
-
-The dissertation uses four principal perturbation experiments. Each experiment changes a defined component of the learning problem while preserving the remaining analytical structure as far as the design permits.
-
-Experiment 1: sample-support perturbation
+Experiment 1: Sample-support perturbation
 
 Question
 
@@ -183,7 +226,7 @@ Does useful transcriptomic prediction remain recoverable when different diseases
 
 Design
 
-TB, RA, UC and CD were each cohort-stratified to:
+TB, RA, UC, and CD were each cohort-stratified to:
 
 41 cases + 41 controls = 82 observations
 
@@ -221,19 +264,21 @@ Random Forest
 LightGBM
 XGBoost
 
-Repeated CV used 10 folds and 2 repeats. Representation fitting and feature selection were repeated inside each training fold before validation predictions were generated.
+Repeated cross-validation used 10 folds and 2 repeats. Representation fitting and feature selection were repeated inside each training fold before validation predictions were generated.
 
-The representation-sensitivity analysis then fixed RF importance, 50 genes and LightGBM so that development-to-held-out behaviour could be compared directly across the three retained representations.
+The representation-sensitivity analysis fixed RF importance, 50 genes, and LightGBM so that development-to-held-out behaviour could be compared directly across the three retained representations.
 
 Confirmatory analyses
 
-The 16-observation balanced held-out sets allowed exact enumeration of all:
+The balanced 16-observation held-out sets permit exact enumeration of:
 
 choose(16, 8) = 12,870
 
-possible case-label allocations. Exact one-sided permutation tests were therefore used instead of Monte Carlo approximation. Held-out representation comparisons used paired DeLong tests, and 5,000 bootstrap replicates quantified uncertainty in development-to-held-out AUROC differences.
+possible case-label allocations.
 
-Experiment 2: disease-composition perturbation
+Exact one-sided permutation tests were therefore used for held-out AUROC testing. Held-out representation comparisons used paired DeLong tests, and 5,000 bootstrap replicates quantified uncertainty in development-to-held-out AUROC differences.
+
+Experiment 2: Disease-composition perturbation
 
 Question
 
@@ -245,15 +290,15 @@ A shared cross-disease gene universe was defined from the five development datas
 
 4,450 genes
 
-This same feature space was held fixed across the principal pooled-model comparison.
+This feature space was held fixed across the principal pooled-model comparison.
 
 Pooled development populations
 
-Model A:
+Model A
 RA + UC + CD + T1D
 n = 1,413
 
-Model B:
+Model B
 TB + RA + UC + CD + T1D
 n = 1,736
 
@@ -261,14 +306,12 @@ Model B therefore added 323 TB development observations while predictor availabi
 
 Development pipeline
 
-The principal cross-disease development framework used:
-
 Representation: VST + fSVA
 Feature selection: mRMR / CMIM
 Class handling: none / training-only SMOTE
 Learners: Random Forest, LightGBM, XGBoost, RBF SVM
 
-Model optimisation used 5 outer folds, 10 inner folds, 20 model-based optimisation evaluations and BACC as the tuning objective.
+Model optimisation used 5 outer folds, 10 inner folds, 20 model-based optimisation evaluations, and BACC as the tuning objective.
 
 Leave-one-disease-out evaluation
 
@@ -282,11 +325,13 @@ The target disease entered only when probabilities were generated.
 
 Frozen TB comparison
 
-Model A and Model B were subsequently refitted using their complete development populations and evaluated on the same frozen TB test population. Because Model B simultaneously introduced TB-specific information and increased development sample size, this comparison is interpreted as the joint effect of target-phenotype exposure and additional sample support.
+Model A and Model B were refitted using their complete development populations and evaluated on the same frozen TB test population.
+
+Because Model B simultaneously introduced TB-specific information and increased development sample size, this comparison represents the joint effect of target-phenotype exposure and additional sample support.
 
 Repeated permutation importance and Reactome pathway enrichment were used to place the cross-disease predictive structure in molecular context.
 
-Experiment 3: cohort-composition perturbation
+Experiment 3: Cohort-composition perturbation
 
 Question
 
@@ -294,7 +339,7 @@ How does strong sample-level learnability compare with transportability to a com
 
 Development and frozen held-out split
 
-For each disease, an approximately 80:20 development-to-held-out split was created using joint cohort-and-outcome stratification. The held-out sample identifiers were frozen in manifests before disease-specific model optimisation.
+For each disease, an approximately 80:20 development-to-held-out split was created using joint cohort-and-outcome stratification. Held-out sample identifiers were frozen in manifests before disease-specific optimisation.
 
 Initial screening
 
@@ -312,7 +357,9 @@ RF permutation importance was used for training-specific gene ranking.
 
 Definitive LOCO optimisation
 
-The final analytical systems converged on Random Forest across all five diseases. For each disease, the development-only LOCO optimisation evaluated:
+The final analytical systems converged on Random Forest across all five diseases.
+
+For each disease, development-only LOCO optimisation evaluated:
 
 Feature counts:
 25
@@ -332,17 +379,21 @@ Candidate pipelines were ranked according to:
 3. Lowest between-cohort AUROC SD
 4. Highest mean LOCO BACC
 
-This prioritises robust lower-bound transportability over an isolated peak average.
-
 Operating threshold
 
-Each final disease-specific classifier received a threshold derived only from development LOCO predictions. Candidate thresholds from 0.05 to 0.95 in increments of 0.01 were ranked by mean cohort BACC, then worst-cohort BACC, with proximity to 0.50 used as the final deterministic tie-break.
+Each final disease-specific classifier received a threshold derived only from development LOCO predictions.
+
+Candidate thresholds ranged from 0.05 to 0.95 in increments of 0.01 and were ranked by:
+
+1. Highest mean cohort BACC
+2. Highest worst-cohort BACC
+3. Closest value to 0.50
 
 The selected threshold was frozen before final evaluation.
 
 Final evaluation and molecular reliability
 
-For every omitted target cohort, representation fitting, RF feature ranking and classifier fitting used only the remaining source cohorts. Target cohorts entered at prediction.
+For every omitted target cohort, representation fitting, RF feature ranking, and classifier fitting used only the remaining source cohorts. The target cohort entered at prediction.
 
 Evaluation included:
 
@@ -355,11 +406,11 @@ Brier score
 Calibration intercept and slope
 Calibration curves
 
-The final locked disease-specific system was then reconstructed from the complete development population and applied to the frozen 20% held-out sample population.
+The locked disease-specific system was then reconstructed from the complete development population and applied to the frozen 20% held-out sample population.
 
-Repeated ΔAUROC permutation importance was calculated 100 times per selected gene. First-order ALE profiles were generated for up to six leading genes to describe the fitted expression-response functions.
+Repeated delta-AUROC permutation importance was calculated 100 times per selected gene. First-order ALE profiles were generated for up to six leading genes to describe fitted expression-response functions.
 
-Experiment 4: model-architecture perturbation
+Experiment 4: Model-architecture perturbation
 
 Question
 
@@ -367,24 +418,33 @@ Does changing learner architecture materially alter predictive transportability 
 
 Matched molecular input
 
-The architecture experiment used:
-
 Representation: log2(CPM + 1)
 Feature selection: RF permutation importance
 Selected genes: 50
 Architectures: LightGBM and TabPFN
 
-The two learners received identical training observations, validation observations, selected genes and feature order. Architecture was therefore the principal controlled difference.
+The two learners received identical training observations, validation observations, selected genes, and feature order.
 
 Development and cohort-level comparison
 
-LightGBM configurations were selected using development resampling. TabPFN used the pretrained default classifier. Both architectures were evaluated using matched outer-CV predictions and the corresponding disease-specific LOCO design.
+LightGBM configurations were selected using development resampling. TabPFN used the pretrained default classifier.
 
-ROC, PR and calibration analyses were generated from the same prediction-level outputs, with bootstrap uncertainty retained for the curves.
+Both architectures were evaluated using matched outer-CV predictions and the corresponding disease-specific LOCO design.
+
+ROC, PR, and calibration analyses were generated from the same prediction-level outputs, with bootstrap uncertainty retained for the curves.
 
 Frozen final evaluation
 
-The final LightGBM and TabPFN models were fitted on the complete development population and evaluated on the same frozen diagnostic test observations. Reported metrics included AUROC, AUPRC, BACC, sensitivity, specificity and Brier score.
+The final LightGBM and TabPFN models were fitted on the complete development population and evaluated on the same frozen diagnostic test observations.
+
+Reported metrics included:
+
+AUROC
+AUPRC
+BACC
+Sensitivity
+Specificity
+Brier score
 
 Model restoration
 
@@ -405,12 +465,14 @@ Before molecular interpretation, restored models were required to reproduce the 
 
 Cross-architecture molecular reliability
 
-Each of the 50 genes was permuted 100 times per architecture. Gene-level concordance was evaluated using:
+Each of the 50 genes was permuted 100 times per architecture.
 
-Spearman correlation of ΔAUROC importance ranks
+Gene-level concordance was evaluated using:
+
+Spearman correlation of delta-AUROC importance ranks
 Top-20 Jaccard overlap
 
-ALE analysis then compared the fitted expression-response functions across architectures. Recurrence of gene identity and response direction provides stronger evidence of molecular persistence than importance measured within a single learner.
+ALE analysis then compared fitted expression-response functions across architectures.
 
 Performance metrics
 
@@ -448,9 +510,9 @@ Calibration is assessed separately because ranking performance and probability s
 
 Reproducibility controls
 
-TRACE-Omics treats reproducibility as preservation of the complete fit-and-apply relationship rather than preservation of a transformed matrix alone.
+TRACE-Omics preserves the complete fit-and-apply relationship between development and evaluation data.
 
-The workflow therefore retains, where applicable:
+The workflow retains, where applicable:
 
 Raw-count matrices
 Harmonised metadata
@@ -473,13 +535,11 @@ The global project seed is:
 
 7832
 
-Deterministic sub-seeds are generated for disease-, fold-, configuration-, gene- and permutation-specific operations where required.
+Deterministic sub-seeds are generated for disease-, fold-, configuration-, gene-, and permutation-specific operations where required.
 
-Evaluation observations are excluded from the estimation of preprocessing, feature selection, class handling, hyperparameter tuning and final model fitting for the corresponding validation design.
+Evaluation observations enter only after the corresponding preprocessing, feature-selection, class-handling, tuning, and model-estimation states have been fitted from development or source observations.
 
 Repository structure
-
-The public repository is organised around the final TRACE-Omics stages and experiments:
 
 trace-omics/
 ├── README.md
@@ -503,15 +563,13 @@ trace-omics/
 │   └── 04_generalisation_reliability/
 └── results/
 
-Exact executable scripts may be separated by disease or experiment inside these stage directories. The directory structure should preserve the four TRACE-Omics stages while allowing the four perturbation experiments to reuse common functions and saved analytical states.
+Exact executable scripts may be separated by disease or experiment inside these stage directories.
 
 Recommended execution logic
 
-The complete workflow proceeds in the following order:
-
 1. Acquire public RNA-seq data
-2. Curate one eligible biological observation per participant where required
-3. Harmonise gene identifiers and experimental metadata
+2. Curate eligible biological observations
+3. Harmonise gene identifiers and metadata
 4. Create and freeze development/evaluation manifests
 5. Specify candidate transcriptomic representations
 6. Characterise representation structure
@@ -521,23 +579,32 @@ The complete workflow proceeds in the following order:
 10. Freeze the selected predictive system
 11. Evaluate on the designated target population
 12. Perform molecular reliability analysis on the locked system
-13. Save predictions, model state, audit files and session information
+13. Save predictions, model state, audit files, and session information
 
-Large analyses should be run from a clean R session. The LightGBM–TabPFN experiment should initialise its specified Python environment before model restoration or fitting.
+Large analyses should be run from a clean R session.
+
+The LightGBM-TabPFN architecture experiment should initialise its specified Python environment before model fitting or restoration.
 
 Computational environment
 
-The dissertation workflow was coordinated in R. RNA-seq preprocessing relied primarily on Bioconductor packages including DESeq2, sva, AnnotationDbi and org.Hs.eg.db. Model development used the mlr3 ecosystem together with learner-specific implementations. DALEX and ingredients were used for model-agnostic interpretation and ALE analysis.
+The dissertation workflow was coordinated in R.
 
-The architecture experiment used R through reticulate together with a pinned Python 3.10 environment containing the principal dependencies:
+RNA-seq preprocessing relied primarily on Bioconductor packages including:
+
+DESeq2
+sva
+AnnotationDbi
+org.Hs.eg.db
+
+Model development used the mlr3 ecosystem together with learner-specific implementations. DALEX and ingredients were used for model-agnostic interpretation and ALE analysis.
+
+The architecture experiment used R through reticulate with a pinned Python 3.10 environment containing:
 
 NumPy 1.22.4
 scikit-learn 1.2.2
 LightGBM 4.6.0
 PyTorch 2.4.1
 TabPFN 0.1.11
-
-The final repository configuration should preserve these versions, together with the exact model-restoration tolerance used by the executable architecture workflow.
 
 Public repository guidance
 
@@ -568,18 +635,8 @@ results/
 
 The raw RNA-seq datasets remain available through their original public repositories and should be downloaded by users according to the accessions documented above.
 
-Minimal reproducible example
-
-A synthetic public example can be added later using the same required structure:
-
-data/example/
-├── counts/
-│   ├── cohort_A.csv
-│   └── cohort_B.csv
-└── metadata.rds
-
-Synthetic data should reproduce the expected file structure, class labels and cohort organisation while containing no participant-level values from the source studies.
-
 Citation
+
+If you use TRACE-Omics, please cite the repository together with the associated dissertation or subsequent manuscript when available.
 
 If using TRACE-Omics, cite the repository together with the associated dissertation or subsequent manuscript when available.
