@@ -1,11 +1,20 @@
 # TRACE-Omics
 
-**TRACE-Omics** is a reproducible R workflow for evaluating robust and generalisable machine learning in multi-cohort transcriptomic data.
+**TRACE-Omics** is a reproducible R framework for evaluating the robustness and generalisability of machine-learning models in multicohort transcriptomic data.
 
-TRACE-Omics stands for **Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics machine learning**. The framework is designed for studies where disease-associated signal must be recovered from heterogeneous RNA-seq cohorts while controlling for technical variation, feature instability, class imbalance, optimisation uncertainty, and transportability failure.
+TRACE-Omics stands for **Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics learning**.
 
-The repository is organised as a staged analytical framework moving from representation diagnostics to feature-space stability, predictive benchmarking, external cohort validation, and model reliability assessment.
+The framework was developed for transcriptomic prediction problems in which disease-associated molecular structure must be estimated across heterogeneous RNA-seq cohorts and evaluated under changes in the statistical learning problem. TRACE-Omics supports controlled investigation of sample support, transcriptomic representation, disease composition, cohort composition and model architecture.
+
+The analytical workflow is organised into four sequential stages:
+
+1. **Representation specification**
+2. **Feature set characterisation**
+3. **Model development and optimisation**
+4. **Generalisation and reliability assessment**
+
+Together, these stages support evaluation of predictive and molecular stability across the controlled perturbation experiments implemented in the framework, including equal-size sample reduction, cross-disease transfer, complete cohort exclusion and matched model-architecture comparison.
 
 ## Repository status
 
-This repository is currently private and under active development as part of an ongoing PhD dissertation. A public release will be made after thesis examination and final approval.
+This repository is currently private and under active development as part of a PhD dissertation at Stellenbosch University. Public release is planned following thesis examination and finalisation of the reproducible TRACE-Omics codebase.
