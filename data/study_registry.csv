@@ -1,0 +1,14 @@
+disease,study,study_id,n,accession,source
+TB,GC6,TB-1,227,GSE94438,Whole blood
+TB,ACS,TB-2,190,GSE79362,Whole blood
+TB,Catalysis,TB-3,48,GSE89403,Whole blood
+RA,Shchetynsky,RA-1,24,GSE90081,Whole blood
+RA,Guo,RA-2,147,GSE120178,Whole blood
+RA,Sales,RA-3,59,E-MTAB-13361,Monocytes
+UC,Halfvarson,UC-1,434,E-MTAB-11349,Whole blood
+UC,Wacker,UC-2,792,GSE177044,Whole blood
+UC,Mo,UC-3,27,GSE112057,Whole blood
+CD,Halfvarson,CD-1,423,E-MTAB-11349,Whole blood
+CD,Mo,CD-2,72,GSE112057,Whole blood
+T1D,Leal,T1D-1,47,GSE123658,Whole blood
+T1D,Speake,T1D-2,8,GSE60424,Whole blood

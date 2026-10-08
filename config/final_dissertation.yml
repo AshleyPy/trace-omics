@@ -1,0 +1,131 @@
+project:
+  name: TRACE-Omics
+  full_name: Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics
+  dissertation_title: Performance of AI algorithms on omics data
+  seed: 7832
+  positive_class: case
+  negative_class: control
+
+terminology:
+  preprocessing_strategy: true
+  feature_selection_abbreviation: FS
+  class_imbalance_correction_abbreviation: CIC
+  generalisation_assessment: empirical_process
+  population_generalisability: represented_populations
+  study_transportability: complete_study_exclusion
+  disease_transportability: complete_disease_exclusion
+
+original_benchmark:
+  diseases: [TB, RA, UC, CD]
+  split: "approximately 70:30, stratified jointly by study and outcome"
+  development_n: {TB: 323, RA: 159, UC: 873, CD: 345}
+  holdout_n: {TB: 142, RA: 71, UC: 380, CD: 150}
+  preprocessing: [VST_fSVA, VST_ComBatRef, ComBatSeq_log1p]
+  feature_selection: [information_gain, importance, boruta, mrmr, cmim]
+  classifiers: [Naive_Bayes, Linear_SVM, RBF_SVM, C5_0, Random_Forest, LightGBM, XGBoost]
+  pipeline_count_per_disease: 105
+  outer_folds: 5
+  inner_folds_when_tuned: 10
+  tuning_evaluations: 20
+  tuning_metric: classif.bacc
+  primary_development_metric: AUROC
+
+equal_size_sensitivity:
+  diseases: [TB, RA, UC, CD]
+  repetitions: 100
+  n_per_repetition: 82
+  cases: 41
+  controls: 41
+  stratification: [study, outcome]
+  same_pipeline_search_as_original: true
+  T1D_exclusion_reason: "The experiment perturbed the original four-disease benchmark and T1D had only 55 available observations, below the common n=82 target."
+
+study_transportability:
+  development_split: "approximately 80% of each disease-specific population"
+  holdout_split: "approximately 20% sample-level holdout"
+  development_n: {TB: 372, RA: 184, UC: 1002, CD: 396, T1D: 44}
+  holdout_n: {TB: 93, RA: 46, UC: 251, CD: 99, T1D: 11}
+  design: LOSO-CV
+  transformations: [log2_CPM_plus_1, VST]
+  feature_selection: importance
+  feature_counts: [25, 50, 100]
+  classifier: Random_Forest
+  class_weighting: [unweighted, weighted]
+  importance_trees: 250
+  final_forest_trees: 1000
+  final_min_node_size: 5
+  threshold_grid: "0.05 to 0.95 by 0.01"
+  threshold_primary_metric: mean_study_bACC
+
+matched_architectures:
+  classifiers: [LightGBM, TabPFN]
+  feature_selection: importance
+  selected_genes: 100
+  outer_folds: 5
+  inner_folds: 3
+  holdout_threshold: 0.50
+  model_restore_tolerance: 1.0e-5
+  tabpfn_version: 0.1.11
+
+pooled_models:
+  common_genes: 4450
+  common_holdout_n: 762
+  common_holdout_controls: 393
+  common_holdout_cases: 369
+  model_A:
+    label: TB-naive
+    diseases: [RA, UC, CD, T1D]
+    development_n: 1413
+  model_B:
+    label: all-five-disease
+    diseases: [TB, RA, UC, CD, T1D]
+    development_n: 1736
+  primary_preprocessing: VST_fSVA
+  feature_selection_candidates: [mrmr, cmim]
+  top_n_features: 50
+  CIC: [observed_distribution, SMOTE]
+  classifiers: [Random_Forest, LightGBM, XGBoost, RBF_SVM]
+  development_cv: "two repeats of five-fold cross-validation"
+  tuning_inner_folds: 10
+  tuning_evaluations: 20
+  tuning_metric: classif.bacc
+  primary_locked_specification:
+    preprocessing: VST_fSVA
+    feature_selection: mrmr
+    top_n_features: 50
+    CIC: observed_distribution
+    classifier: LightGBM
+  threshold_method: Youden_J
+
+pooled_sensitivity:
+  model: B
+  preprocessing: VST_ComBatRef
+  feature_selection: boruta
+  top_n_features: 50
+  CIC: observed_distribution
+  classifier: LightGBM
+  lightgbm:
+    boosting_iterations: 250
+    minimum_leaf_size: 5
+    bagging_fraction: 0.80
+    bagging_frequency: 1
+
+disease_transportability:
+  design: LODO-CV
+  common_genes: 4450
+  preprocessing: VST_fSVA
+  feature_selection: mrmr
+  top_n_features: 50
+  CIC: observed_distribution
+  classifier: LightGBM
+  rationale: "Carry the prespecified primary pooled analytical system forward unchanged so that the disease-population boundary changes while analytical specification is held fixed."
+
+performance:
+  discrimination: AUROC
+  positive_class: AUPRC
+  threshold_metrics: [Sensitivity, Specificity, bACC]
+  probability_error: Brier
+  AUROC_CI: DeLong
+  paired_AUROC_comparison: paired_DeLong
+  other_metric_CI: "class-stratified bootstrap where reported"
+  bootstrap_iterations: 2000

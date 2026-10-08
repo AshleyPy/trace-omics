@@ -1,21 +1,33 @@
-# R
 .Rhistory
 .RData
 .Ruserdata
-
-# Data
-data/raw/
-data/processed/
-
-# Results
-results/
-*.rds
-*.csv
-*.png
-*.tiff
-*.pdf
-*.html
-
-# System
+.Rproj.user/
+renv/library/
+renv/staging/
+__pycache__/
+*.pyc
 .DS_Store
 Thumbs.db
+
+# Data and generated analytical state
+/data/raw/
+/data/processed/
+/results/*
+!/results/README.md
+*.rds
+*.RDS
+*.rda
+*.RData
+*.qs
+*.pkl
+*.joblib
+*.pt
+*.ckpt
+
+# Local config and credentials
+config/local.yml
+config/local.yaml
+config/local.R
+.env
+*.pem
+*.key

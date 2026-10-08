@@ -1,8 +1,17 @@
 cff-version: 1.2.0
-title: TRACE-Omics
-message: "If you use this framework, please cite it."
+message: "If you use TRACE-Omics, please cite the dissertation and the repository release used in your analysis."
+title: "TRACE-Omics: Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics"
+type: software
 authors:
   - family-names: Ehlers
     given-names: Ashley
-repository-code: https://github.com/AshleyPy/trace-omics
-license: MIT
+repository-code: "https://github.com/AshleyPy/trace-omics"
+version: "0.1.0-examiner"
+date-released: "2026-10-08"
+keywords:
+  - transcriptomics
+  - RNA-seq
+  - machine learning
+  - generalisability
+  - transportability
+  - sensitivity analysis

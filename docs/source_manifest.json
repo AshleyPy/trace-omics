@@ -1,0 +1,335 @@
+[
+  {
+    "file": "legacy/equal_size/01.R",
+    "source": "Pasted text (3)(20261002-085520).txt",
+    "chunk": 1,
+    "start_line": 2,
+    "end_line": 8516,
+    "sha256": "4c18d0df088968684c44babf44fd323ffe58bf43549582d02ca1e803f18348ba",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/01.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 1,
+    "start_line": 2,
+    "end_line": 145,
+    "sha256": "0c3c6960e6451281cd7462b22a7b7d7974fab05e5b93315a73a90b58e423c6ce",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/02.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 2,
+    "start_line": 148,
+    "end_line": 3542,
+    "sha256": "800e627f219b7ffc41234d75243fa742b091edd4b0df8daef8f7e855499a16ca",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/03.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 3,
+    "start_line": 3546,
+    "end_line": 4263,
+    "sha256": "bac12b5dbcaeb961f99175ccea496baf24f3ce8749e0a803b4dde63f2ccd1775",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/04.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 4,
+    "start_line": 4267,
+    "end_line": 6707,
+    "sha256": "55453b0609c095c43864e9c8658e7b84ca9a731428d11cc48d0acffdf3283db0",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/05.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 5,
+    "start_line": 6711,
+    "end_line": 7215,
+    "sha256": "dae7a984bc9d002ea0a5f8fd50be330b5149cb028ecb8710738b22301567fb23",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/06.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 6,
+    "start_line": 7220,
+    "end_line": 7354,
+    "sha256": "fbbfa5638aefb5b01fde58ed8ce6b44bada23593abfcad54007596c25b38fc84",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/07.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 7,
+    "start_line": 7359,
+    "end_line": 7890,
+    "sha256": "366ee89812846e8d59dacec42ba76f763b4e21b185b62aeead1821ecafc82942",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/08.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 8,
+    "start_line": 7894,
+    "end_line": 8180,
+    "sha256": "04200e4bb442bbb489afcd1339ab289d2c88577b981ffbe45dcc9549f2cc330c",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/09.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 9,
+    "start_line": 8185,
+    "end_line": 8757,
+    "sha256": "0e8e80506478a8bb7f6a9d32e89fa1651a806ae32c808090394a8cc19e18a72e",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/10.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 10,
+    "start_line": 8762,
+    "end_line": 9108,
+    "sha256": "73d809fdeaa26a9462467a69c95d9be943f3f624f4429b91d601b55efdea2b7a",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/11.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 11,
+    "start_line": 9114,
+    "end_line": 9219,
+    "sha256": "61ab0d4dc5fda9f1cbeaa1107e1993a0d0decb3d58d96bd0556eaed9eb2fa898",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/12.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 12,
+    "start_line": 9225,
+    "end_line": 9443,
+    "sha256": "a1b07aa60ee7a10b6b493fc1852c46705016582a4f110c05cef3479271a6efac",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/13.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 13,
+    "start_line": 9448,
+    "end_line": 9980,
+    "sha256": "d22b35aca1a25c8e6a993c99c4b96afc8cbb0e8509bd7af624164a47a42502e9",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/14.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 14,
+    "start_line": 9985,
+    "end_line": 10074,
+    "sha256": "49791dd9988f47a194abe2564847ea16b28dcef43866e93a61e53c846e25eae3",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/15.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 15,
+    "start_line": 10079,
+    "end_line": 10183,
+    "sha256": "75f455c4faf544b25200d4867c4aa89ca8b1704d568c01915e4a39d2958e6b99",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/16.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 16,
+    "start_line": 10188,
+    "end_line": 10664,
+    "sha256": "af1d541c60462ef0418175577088f1c8d2da983b6c6218265c356de26842623a",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/17.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 17,
+    "start_line": 10669,
+    "end_line": 10969,
+    "sha256": "130846497ca2e046973f458e61d2f469cdc80c1eb2dee3c15236a06234710ad2",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/18.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 18,
+    "start_line": 10975,
+    "end_line": 11091,
+    "sha256": "c4e8f3edbaad5e6e89189c626c2e7f663cd4883f074518ecf2aeb69c9f00d16e",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/19.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 19,
+    "start_line": 11096,
+    "end_line": 11206,
+    "sha256": "43d60951f46ac0ae5864de81ef2fa13a95ba27a298c695fa322c7d3ffbbb40af",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/20.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 20,
+    "start_line": 11211,
+    "end_line": 11391,
+    "sha256": "021209ebf0c4d9b61f4b5a4023550a59898c1de163d6a3d311e0259e1cd7f408",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/21.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 21,
+    "start_line": 11394,
+    "end_line": 11565,
+    "sha256": "1d6e6c11116e2ae0a3794e0b1e046162067fd23a87167e3b3624e76f5a5fbbf9",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/22.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 22,
+    "start_line": 11569,
+    "end_line": 11993,
+    "sha256": "f05568b1fe1d2607569b2722446e730f99eb83bf9268e030b3fd26ff45e0bf84",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/23.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 23,
+    "start_line": 11998,
+    "end_line": 12259,
+    "sha256": "6c6c14764e678e1d2b9bdaff7af654a2213138572a04688cb3e9c2754f8e5037",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/24.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 24,
+    "start_line": 12264,
+    "end_line": 12331,
+    "sha256": "02ecf67603258aab6a79f301d64a1eb573e13c959b1567e92b7196d8fe803d81",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/25.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 25,
+    "start_line": 12334,
+    "end_line": 14766,
+    "sha256": "f29a30a2c179013a72d417bfcb5b157cb357513a76f544cfd8b433c1ae43af35",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/26.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 26,
+    "start_line": 14769,
+    "end_line": 15932,
+    "sha256": "68941a41410ec2a5744fd39b8bdd4f2bf67e2b1b185c575b1b63b59b000b4806",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/27.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 27,
+    "start_line": 15935,
+    "end_line": 16729,
+    "sha256": "699e637b928d712f17b8f142d8c763f97db27831593752f8595d45a480a46e85",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/28.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 28,
+    "start_line": 16732,
+    "end_line": 17556,
+    "sha256": "37aea5bcbfe3f4653d3a256e31bd430a4ef6e6579dd56b9080dad3b77b86bcd9",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/study_models/29.R",
+    "source": "Pasted text (4)(20261002-085714).txt",
+    "chunk": 29,
+    "start_line": 17559,
+    "end_line": 17719,
+    "sha256": "50ff3527bad91c4fd583654b05c1946730d020c4e12d222beb457e126213bfff",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/matched_architectures/01.R",
+    "source": "Pasted text (5)(4).txt",
+    "chunk": 1,
+    "start_line": 2,
+    "end_line": 4487,
+    "sha256": "f3284f4c03b42d555be4b4a2a797a160bf4609556b23b65dd61b877fb4419c7d",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/matched_architectures/02.R",
+    "source": "Pasted text (5)(4).txt",
+    "chunk": 2,
+    "start_line": 4490,
+    "end_line": 6260,
+    "sha256": "e191c9a7bce231444e1fece17d0908d473a509b1e9feb550742a8c3151eb2f78",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/matched_architectures/03.R",
+    "source": "Pasted text (5)(4).txt",
+    "chunk": 3,
+    "start_line": 6263,
+    "end_line": 8419,
+    "sha256": "8b575eb7f3f39ef9a59e366bb880511864094e5810b215c948cb5f2b674fa1dc",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/matched_architectures/04.R",
+    "source": "Pasted text (5)(4).txt",
+    "chunk": 4,
+    "start_line": 8422,
+    "end_line": 8995,
+    "sha256": "ddee98894c5632da38ea73950886120b6f192d76a6f4699e19dd4e211c4ca877",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/matched_architectures/05.R",
+    "source": "Pasted text (5)(4).txt",
+    "chunk": 5,
+    "start_line": 8998,
+    "end_line": 10329,
+    "sha256": "359c43ce32b22fe54ca5262d883546c6ee2ce79358cc025e98aa9807db37a6be",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/pooled_combatref/01.R",
+    "source": "Pasted text (6)(2).txt",
+    "chunk": 1,
+    "start_line": 3,
+    "end_line": 1369,
+    "sha256": "62ef2067fb4650af3302d23573d425c0792e75b54c743bda33a0e5c98134455c",
+    "status": "supplied code; extracted verbatim"
+  },
+  {
+    "file": "legacy/pooled_combatref/02.R",
+    "source": "Pasted text (6)(2).txt",
+    "chunk": 2,
+    "start_line": 1372,
+    "end_line": 1583,
+    "sha256": "0720d6ef364c75b1ba1bbfd1206cb8686254977f87f8df63ae87074fac1ea583",
+    "status": "supplied code; extracted verbatim"
+  }
+]

@@ -1,0 +1,2 @@
+sample_id,participant_id,study,disease_group,outcome,repository_accession
+EXAMPLE_SAMPLE,EXAMPLE_PARTICIPANT,TB-1,TB,case,GSE94438

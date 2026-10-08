@@ -1,6 +1,6 @@
 # ==============================================================================
 # TRACE-Omics
-# Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics learning
+# Transcriptomic Robustness Assessment and Cross-cohort Evaluation for Omics
 # Core utility functions for configuration, validation, task handling and audit
 #
 # File:
@@ -835,4 +835,3 @@ set_trace_subseed <- function(seed = 7832, ...) {
 # ==============================================================================
 # End of TRACE-Omics R/utils_io.R
 # ==============================================================================
-
