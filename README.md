@@ -11,8 +11,6 @@ The framework treats two questions separately:
 
 In the dissertation, sample-level holdout evaluation supplied evidence for **population generalisability**, complete-study exclusion evaluated **study transportability**, and complete-disease exclusion evaluated **disease transportability**.
 
-![TRACE-Omics framework](docs/assets/four_stage_framework.png)
-
 ## Repository status
 
 This repository is a **source release assembled from the surviving dissertation code, reconstructed stage scripts, configuration records and analytical documentation**. It preserves the code used or developed across the TRACE-Omics analyses while making the boundaries of numerical reproduction explicit.
