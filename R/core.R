@@ -314,7 +314,28 @@ trace_select <- function(train, new, meta, method, k, seed, project_root = NULL)
 trace_folds <- function(meta, k = 5L, seed = 7832L, manifest = NULL,
                         strata = c("study", "outcome")) {
   if (k < 2L) stop("Cross-validation needs at least two folds.")
-  if (!is.null(manifest)) {
+  
+    required_columns <- c(
+      "sample_id",
+      "participant_id",
+      "study",
+      "outcome"
+    )
+    
+    missing_columns <- setdiff(
+      required_columns,
+      names(meta)
+    )
+    
+    if (length(missing_columns) > 0L) {
+      stop(
+        "Missing required fold metadata: ",
+        paste(missing_columns, collapse = ", "),
+        call. = FALSE
+      )
+    }
+    
+    if (!is.null(manifest)) {
     z <- if (is.character(manifest)) utils::read.csv(manifest, stringsAsFactors = FALSE) else manifest
     if (!all(c("sample_id", "fold") %in% names(z)) || anyDuplicated(z$sample_id) ||
         !setequal(z$sample_id, meta$sample_id)) stop("Invalid frozen fold manifest.")
