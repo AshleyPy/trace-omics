@@ -156,7 +156,15 @@ trace_lightgbm_grid <- function() {
   )
 }
 
-lightgbm_grid <- data.table::as.data.table(
-  trace_lightgbm_grid()
+# Defer the optional dependency until the architecture grid is actually used.
+# A data.table is required to retain historical lightgbm_grid[i] row selection.
+delayedAssign(
+  "lightgbm_grid",
+  {
+    if (!requireNamespace("data.table", quietly = TRUE)) {
+      stop("lightgbm_grid requires the R package 'data.table'.")
+    }
+    data.table::as.data.table(trace_lightgbm_grid())
+  }
 )
 
