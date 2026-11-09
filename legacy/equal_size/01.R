@@ -1,119 +1,31 @@
 # ======================================================================
-# CD EQUAL-SIZE 41 CASE / 41 CONTROL BENCHMARK
-# CLEAN-SLATE | 80/20 FINAL ICE | LEAKAGE-FREE
+# TRACE-Omics | Disease-agnostic bulk RNA-seq binary classifier benchmark
+# PUBLICATION CANDIDATE (unvalidated; validate against original analyses)
 # ======================================================================
+# Gene-level raw integer counts (genes x samples) + sample metadata.
+# One external YAML config per task: TB, UC, RA, T1D, CD or another case-
+# control problem. The disease name is never used as a predictor.
 #
-# PRIMARY QUESTION
-# ----------------
-# In CD alone, after cohort-stratified equal-size sampling to exactly
-# 41 cases + 41 controls, which representation / feature-selection /
-# classifier combinations remain learnable and transportable?
+# Two sampling modes:
+#   equal_size: draw the requested number of cases and controls per task
+#   all: use every aligned observation, with class-stratified holdout
 #
-# EQUAL-SIZE DESIGN
-# -----------------
-# 1. Start from the FULL CD raw-count population.
-# 2. Cohort-stratified downsample ONCE to:
-#       41 cases + 41 controls = 82 observations.
-# 3. Freeze an 80/20 split:
-#       development = 33 cases + 33 controls = 66
-#       Final Ice   =  8 cases +  8 controls = 16
-#    The split is stratified by cohort + outcome and retains source
-#    cohort representation in development.
+# Original training-fitted VST/fSVA/ComBat-Ref/ComBat-Seq, five feature
+# selectors and seven learners are retained. LOCO requires >= 2 cohorts,
+# and transformation feasibility depends on training cohort availability.
 #
-# REPRESENTATIONS
-# ---------------
-# A. VST + fSVA
-# B. VST + ComBat-Ref
-# C. frozen ComBat-Seq + log1p
-#
-# IMPORTANT ABOUT COMBAT-SEQ + LOG1P
-# ---------------------------------
-# log1p is NOT what makes ComBat-Seq leakage-free.
-# ComBat-Seq produces adjusted count-scale values. log1p is retained
-# here because it makes the adjusted-count representation much more
-# comparable to VST-based continuous representations for PCA and ML.
-#
-# The important leakage issue is new-data projection. The exported
-# sva::ComBat_seq() does not provide a reusable fitted transform.
-# Therefore this script uses a frozen, training-estimated ComBat-Seq
-# implementation for ordinary CV/final-ice projection to cohorts that
-# were represented in training.
-#
-# STRICT LOCO / CCV
-# -----------------
-# A completely unseen cohort cannot validly be transformed by:
-#   - frozen ComBat-Ref
-#   - frozen ComBat-Seq
-# because the target batch level was absent from training.
-#
-# Therefore strict leave-one-cohort-out CCV is run ONLY for VST + fSVA.
-# A feasibility table is written explicitly so this limitation is not
-# hidden.
-#
-# FEATURE SELECTION
-# -----------------
-# Top 50, learned INSIDE each training fold:
-#   - Information gain
-#   - RF importance
-#   - Boruta
-#   - mRMR
-#   - CMIM
-#
-# CLASSIFIERS
-# -----------
-# Fixed, untuned:
-#   - Naive Bayes
-#   - Linear SVM
-#   - C5.0
-#   - Random Forest
-#   - LightGBM
-#   - XGBoost
-#   - RBF SVM
-#
-# FAST BENCHMARK
-# --------------
-# Default is 5-fold CV x 1 repeat.
-# Set CV_REPEATS <- 2L for a repeated-CV sensitivity analysis.
-#
-# FINAL ICE
-# ---------
-# Final Ice is evaluated ONCE, only after the best development-CV
-# pipeline is locked.
-#
-# OUTPUTS
-# -------
-# 00_audits/
-# 01_split/
-#   - CD_train_test_split_summary.csv
-#   - CD_train_test_split_by_cohort.csv
-# 02_diagnostics/
-#   - CD_representation_diagnostics.csv
-#   - CD_sequencing_depth_dependence.csv
-#   - CD_sequencing_depth_by_cohort.csv
-# 03_feature_concordance/
-#   - CD_feature_sets_full_development.csv
-#   - CD_Jaccard_pairwise.csv
-#   - one Jaccard matrix per representation
-# 04_benchmark/
-#   - CD_benchmark_fold_results.csv
-#   - CD_benchmark_summary.csv
-#   - CD_locked_winner.csv
-# 05_CCV/
-#   - CD_CCV_split_table.csv
-#   - CD_CCV_representation_feasibility.csv
-#   - CD_CCV_results_VST_fSVA.csv
-#   - CD_CCV_summary_VST_fSVA.csv
-# 99_FINAL_ICE/
-#   - CD_FINAL_ICE_locked_pipeline_results.csv
-#   - CD_FINAL_ICE_predictions.csv
+# WITHOUT EXACT FROZEN PARTITION AND CV FOLD MANIFESTS: a newly sampled
+# experiment is NOT a numerical reproduction of a dissertation result.
+# Outputs can contain sample-level data and MUST remain PRIVATE.
 # ======================================================================
-
 
 # ======================================================================
 # 0. CLEAN ENVIRONMENT
 # ======================================================================
 
-rm(list = ls(all.names = TRUE))
+# Run in a fresh Rscript session. Do not delete objects from a user's
+# interactive/global environment. A separate process also provides a
+# more reliable record of the software environment.
 gc(verbose = FALSE)
 
 
@@ -146,25 +58,11 @@ required_packages <- c(
   "scales"
 )
 
-missing_packages <- required_packages[
-  !vapply(
-    required_packages,
-    requireNamespace,
-    quietly = TRUE,
-    FUN.VALUE = logical(1)
-  )
-]
-
-if (length(missing_packages) > 0L) {
-  stop(
-    "Install these packages before running the experiment:\n",
-    paste(missing_packages, collapse = ", ")
-  )
+# Minimal dependencies for data-contract and partition validation.
+if (!requireNamespace("data.table", quietly = TRUE)) {
+  stop("Install 'data.table' before running validation.")
 }
-
-suppressPackageStartupMessages({
-  library(data.table)
-})
+suppressPackageStartupMessages(library(data.table))
 
 
 # ======================================================================
@@ -172,15 +70,19 @@ suppressPackageStartupMessages({
 # ======================================================================
 
 SEED <- 7832L
+# Record the intended RNG algorithms explicitly (R >= 3.6).
+# This complements, but does not replace, version-locked dependencies.
+RNGkind(kind = "Mersenne-Twister", normal.kind = "Inversion",
+        sample.kind = "Rejection")
 
 POSITIVE_CLASS <- "case"
 NEGATIVE_CLASS <- "control"
 
-EQUAL_CASES <- 41L
-EQUAL_CONTROLS <- 41L
+EQUAL_CASES <- 41L # replaced by YAML (or observed count in all mode)
+EQUAL_CONTROLS <- 41L # replaced by YAML (or observed count in all mode)
 
-FINAL_ICE_CASES <- 8L
-FINAL_ICE_CONTROLS <- 8L
+FINAL_ICE_CASES <- 8L # replaced by YAML / derived holdout fraction
+FINAL_ICE_CONTROLS <- 8L # replaced by YAML / derived holdout fraction
 
 TOP_N <- 50L
 
@@ -257,71 +159,167 @@ seed_for <- function(...) {
 
 
 # ======================================================================
-# 4. PATHS
+# 4. CONFIGURATION AND PRIVATE INPUT PATHS
 # ======================================================================
 
-user_home <- Sys.getenv(
-  "USERPROFILE",
-  unset = path.expand("~")
+# Inputs are supplied explicitly; only non-sensitive task parameters go in
+# YAML. This avoids hardcoded institution or disease file paths.
+usage <- paste(
+  "Required: --config FILE.yml --counts FILE --metadata FILE --output-dir NEW_DIR",
+  "Optional: --partition-manifest FILE.csv --fold-manifest FILE.csv",
+  "Optional: --validate-only true|false (input and design checks only)",
+  "Counts: .rds matrix or .csv/.tsv with first column gene_id.",
+  "Metadata: .rds data.frame or .csv/.tsv, columns specified in YAML.",
+  "Outputs include sensitive sample-level data. Use a private directory OUTSIDE Git.",
+  sep = "\n"
 )
-
-raw_cd_dir_candidates <- c(
-  file.path(user_home, "Downloads", "RawIBDdata"),
-  file.path(user_home, "OneDrive", "Downloads", "RawIBDdata")
-)
-
-raw_cd_dir_hits <- raw_cd_dir_candidates[
-  dir.exists(raw_cd_dir_candidates)
-]
-
-if (length(raw_cd_dir_hits) == 0L) {
-  stop(
-    "RawIBDdata directory not found. Checked:\n",
-    paste(raw_cd_dir_candidates, collapse = "\n")
-  )
+parse_cli <- function(args) {
+  if (length(args) == 1L && args[[1L]] %in% c("--help", "-h")) {
+    cat(usage, "\n")
+    quit(save = "no", status = 0L)
+  }
+  if (length(args) == 0L || length(args) %% 2L != 0L) {
+    stop(usage, call. = FALSE)
+  }
+  keys <- args[seq(1L, length(args), by = 2L)]
+  values <- args[seq(2L, length(args), by = 2L)]
+  allowed <- c("--config", "--counts", "--metadata", "--output-dir",
+               "--partition-manifest", "--fold-manifest", "--validate-only")
+  if (anyDuplicated(keys) || !all(keys %in% allowed) ||
+      any(!nzchar(values)) ||
+      !all(c("--config", "--counts", "--metadata", "--output-dir") %in% keys)) {
+    stop("Invalid CLI arguments.\n", usage, call. = FALSE)
+  }
+  stats::setNames(as.list(values), sub("^--", "", keys))
 }
-
-raw_cd_dir <- normalizePath(
-  raw_cd_dir_hits[[1L]],
-  winslash = "/",
-  mustWork = TRUE
-)
-
-counts_path <- file.path(
-  raw_cd_dir,
-  "cd_joined_numeric_matrix.rds"
-)
-
-metadata_path <- file.path(
-  raw_cd_dir,
-  "cd_metadata_495.rds"
-)
-
-if (!file.exists(counts_path)) {
-  stop("CD raw-count file not found:\n", counts_path)
+cli <- parse_cli(commandArgs(trailingOnly = TRUE))
+if (!requireNamespace("yaml", quietly = TRUE)) {
+  stop("Install R package 'yaml' to read task configuration.")
 }
-
-if (!file.exists(metadata_path)) {
-  stop("CD metadata file not found:\n", metadata_path)
+config_path <- normalizePath(cli[["config"]], winslash = "/", mustWork = TRUE)
+config <- yaml::read_yaml(config_path)
+if (!is.list(config) || !is.list(config$design) || !is.list(config$columns)) {
+  stop("YAML must define 'dataset_id', 'columns' and 'design'.")
 }
-
-desktop_dir <- file.path(
-  user_home,
-  "Desktop"
-)
-
-output_root <- file.path(
-  desktop_dir,
-  "CD_EQUAL_SIZE_41v41_CLEAN_BENCHMARK"
-)
-
-if (dir.exists(output_root)) {
-  stop(
-    "Output directory already exists:\n",
-    output_root,
-    "\n\nFor a genuinely clean rerun, rename or move the old directory first."
-  )
+DATASET_ID <- as.character(config$dataset_id)
+if (length(DATASET_ID) != 1L || is.na(DATASET_ID) ||
+    !grepl("^[A-Za-z][A-Za-z0-9_-]{0,40}$", DATASET_ID)) {
+  stop("dataset_id must be a short alphanumeric label (e.g. TB, UC, RA, T1D).")
 }
+SAMPLING_MODE <- as.character(config$design$sampling_mode)
+if (!SAMPLING_MODE %in% c("equal_size", "all")) {
+  stop("design.sampling_mode must be equal_size or all.")
+}
+get_int <- function(x, name, min_value = 1L) {
+  n <- suppressWarnings(as.numeric(x))
+  if (length(n) != 1L || is.na(n) || !is.finite(n) || n != floor(n) ||
+      n < min_value || n > .Machine$integer.max) {
+    stop("Invalid integer setting: ", name)
+  }
+  as.integer(n)
+}
+SEED <- get_int(config$design$seed, "design.seed", 0L)
+CV_FOLDS <- get_int(config$design$cv_folds, "design.cv_folds", 2L)
+CV_REPEATS <- get_int(config$design$cv_repeats, "design.cv_repeats")
+TOP_N <- get_int(config$design$top_genes, "design.top_genes")
+MAX_SV <- get_int(config$design$max_surrogate_variables,
+                  "design.max_surrogate_variables", 0L)
+if (SAMPLING_MODE == "equal_size") {
+  EQUAL_CASES <- get_int(config$design$equal_cases, "design.equal_cases")
+  EQUAL_CONTROLS <- get_int(config$design$equal_controls, "design.equal_controls")
+  FINAL_ICE_CASES <- get_int(config$design$holdout_cases, "design.holdout_cases")
+  FINAL_ICE_CONTROLS <- get_int(config$design$holdout_controls,
+                                "design.holdout_controls")
+  if (FINAL_ICE_CASES >= EQUAL_CASES ||
+      FINAL_ICE_CONTROLS >= EQUAL_CONTROLS) {
+    stop("Holdout class counts must be smaller than selected class counts.")
+  }
+} else {
+  fraction <- as.numeric(config$design$holdout_fraction)
+  if (length(fraction) != 1L || is.na(fraction) ||
+      fraction <= 0 || fraction >= 0.5) {
+    stop("For all mode, holdout_fraction must be in (0, 0.5).")
+  }
+}
+RNGkind(kind = "Mersenne-Twister", normal.kind = "Inversion",
+        sample.kind = "Rejection")
+set.seed(SEED)
+
+# Mappings are required; never infer the target from arbitrary column names.
+cols <- config$columns
+needed_cols <- c("sample_id", "cohort", "outcome")
+if (!all(needed_cols %in% names(cols))) {
+  stop("columns must specify sample_id, cohort and outcome.")
+}
+for (field in needed_cols) {
+  if (!is.character(cols[[field]]) || length(cols[[field]]) != 1L ||
+      is.na(cols[[field]]) || !nzchar(cols[[field]])) {
+    stop("Invalid column name for: ", field)
+  }
+}
+if (anyDuplicated(unlist(cols[needed_cols], use.names = FALSE))) {
+  stop("Configured sample_id, cohort and outcome source columns must differ.")
+}
+if (!is.null(cols$participant_id) &&
+    (!is.character(cols$participant_id) || length(cols$participant_id) != 1L)) {
+  stop("Invalid columns.participant_id")
+}
+CASE_LABELS <- unique(tolower(trimws(c("case", as.character(config$labels$case)))))
+CONTROL_LABELS <- unique(tolower(trimws(c("control", as.character(config$labels$control)))))
+if (anyNA(CASE_LABELS) || anyNA(CONTROL_LABELS) ||
+    any(CASE_LABELS == "") || any(CONTROL_LABELS == "") ||
+    length(intersect(CASE_LABELS, CONTROL_LABELS))) {
+  stop("Invalid or overlapping case/control label aliases.")
+}
+`%||%` <- function(x, default) if (is.null(x)) default else x
+VALIDATE_ONLY <- identical(tolower(cli[["validate-only"]] %||% "false"), "true")
+
+counts_path <- normalizePath(cli[["counts"]], winslash = "/", mustWork = TRUE)
+metadata_path <- normalizePath(cli[["metadata"]], winslash = "/", mustWork = TRUE)
+partition_manifest_path <- cli[["partition-manifest"]]
+fold_manifest_path <- cli[["fold-manifest"]]
+if (!is.null(partition_manifest_path)) {
+  partition_manifest_path <- normalizePath(partition_manifest_path,
+                                           winslash = "/", mustWork = TRUE)
+}
+if (!is.null(fold_manifest_path)) {
+  fold_manifest_path <- normalizePath(fold_manifest_path,
+                                      winslash = "/", mustWork = TRUE)
+}
+if (xor(is.null(partition_manifest_path), is.null(fold_manifest_path))) {
+  warning("Only one frozen manifest supplied. Exact partition/fold reproduction ",
+          "requires BOTH manifests.", call. = FALSE)
+}
+output_arg <- path.expand(cli[["output-dir"]])
+output_parent <- normalizePath(dirname(output_arg),
+                               winslash = "/", mustWork = TRUE)
+output_root <- file.path(output_parent, basename(output_arg))
+inside_git_tree <- function(start_dir) {
+  current <- normalizePath(start_dir, winslash = "/", mustWork = TRUE)
+  repeat {
+    if (file.exists(file.path(current, ".git")) ||
+        dir.exists(file.path(current, ".git"))) return(TRUE)
+    parent <- dirname(current)
+    if (identical(parent, current)) return(FALSE)
+    current <- parent
+  }
+}
+if (inside_git_tree(output_parent)) {
+  stop("Refusing to write research outputs inside a Git repository. ",
+       "Choose an external private directory.")
+}
+if (file.exists(output_root) || dir.exists(output_root)) {
+  stop("Output path already exists; specify a new directory: ", output_root)
+}
+analysis_mode <- if (!is.null(partition_manifest_path) &&
+                     !is.null(fold_manifest_path)) {
+  "frozen_manifest_reproduction_candidate"
+} else {
+  "new_seeded_replication_or_partial_manifest"
+}
+message("Dataset: ", DATASET_ID, " | sampling: ", SAMPLING_MODE,
+        " | analysis mode: ", analysis_mode)
+message("All outputs are RESTRICTED and must remain private: ", output_root)
 
 audit_dir <- file.path(
   output_root,
@@ -377,213 +375,140 @@ for (current_dir in c(
 
 
 # ======================================================================
-# 5. STANDARDISE CD OUTCOME
+# 5. STANDARDISE BINARY OUTCOME
 # ======================================================================
 
-standardise_cd_outcome <- function(outcome) {
-
-  original <- trimws(
-    as.character(outcome)
-  )
-
-  lower <- tolower(
-    original
-  )
-
-  case_labels <- c(
-    "case",
-    "cases",
-    "cd",
-    "crohn",
-    "crohn's disease",
-    "crohns disease",
-    "crohn disease",
-    "crohn's",
-    "disease",
-    "diseased",
-    "positive"
-  )
-
-  control_labels <- c(
-    "control",
-    "controls",
-    "healthy",
-    "normal",
-    "healthy control",
-    "healthy_control",
-    "negative",
-    "hc"
-  )
-
-  standardised <- rep(
-    NA_character_,
-    length(lower)
-  )
-
-  standardised[
-    lower %in% case_labels
-  ] <- POSITIVE_CLASS
-
-  standardised[
-    lower %in% control_labels
-  ] <- NEGATIVE_CLASS
-
-  invalid <- unique(
-    original[
-      is.na(standardised)
-    ]
-  )
-
-  if (length(invalid) > 0L) {
-    stop(
-      "Unexpected CD outcome label(s):\n",
-      paste(invalid, collapse = "\n")
-    )
+standardise_outcome <- function(outcome) {
+  values <- tolower(trimws(as.character(outcome)))
+  values[values %in% CASE_LABELS] <- "case"
+  values[values %in% CONTROL_LABELS] <- "control"
+  invalid <- unique(as.character(outcome)[!values %in% c("case", "control") |
+                                           is.na(values)])
+  if (length(invalid)) {
+    stop("Unrecognised outcome labels: ", paste(invalid, collapse = ", "),
+         ". Add explicit aliases in config.labels.")
   }
-
-  factor(
-    standardised,
-    levels = c(
-      NEGATIVE_CLASS,
-      POSITIVE_CLASS
-    )
-  )
+  factor(values, levels = c("control", "case"))
 }
 
 
 # ======================================================================
-# 6. LOAD + ALIGN FULL CD RAW DATA
+# 6. LOAD + ALIGN GENE-LEVEL RAW DATA
 # ======================================================================
 
-cd_counts <- as.matrix(
-  readRDS(
-    counts_path
-  )
-)
-
-cd_metadata <- data.table::as.data.table(
-  readRDS(
-    metadata_path
-  )
-)
+read_count_matrix <- function(path) {
+  extension <- tolower(tools::file_ext(path))
+  if (extension == "rds") return(as.matrix(readRDS(path)))
+  if (!extension %in% c("csv", "tsv")) {
+    stop("Counts must be .rds, .csv or .tsv with genes in rows.")
+  }
+  sep <- if (extension == "csv") "," else "\t"
+  d <- data.table::fread(path, sep = sep, check.names = FALSE)
+  if (ncol(d) < 3L) stop("Counts table needs gene_id plus >= 2 samples.")
+  genes <- as.character(d[[1L]])
+  if (anyNA(genes) || any(!nzchar(genes)) || anyDuplicated(genes)) {
+    stop("First counts column must contain unique nonblank gene IDs.")
+  }
+  d[, (names(d)[1L]) := NULL]
+  m <- as.matrix(d)
+  if (!is.numeric(m)) stop("Count columns must be numeric; avoid quoted strings.")
+  rownames(m) <- genes
+  m
+}
+read_sample_metadata <- function(path) {
+  extension <- tolower(tools::file_ext(path))
+  if (extension == "rds") return(data.table::as.data.table(readRDS(path)))
+  if (extension %in% c("csv", "tsv")) {
+    return(data.table::fread(path, sep = if (extension == "csv") "," else "\t"))
+  }
+  stop("Metadata must be .rds, .csv or .tsv.")
+}
+rna_counts <- read_count_matrix(counts_path)
+rna_metadata <- read_sample_metadata(metadata_path)
 
 if (
-  is.null(rownames(cd_counts)) ||
-    is.null(colnames(cd_counts))
+  is.null(rownames(rna_counts)) ||
+    is.null(colnames(rna_counts))
 ) {
   stop(
-    "CD raw-count matrix requires gene and sample identifiers."
+    "Raw-count matrix requires gene and sample identifiers."
   )
 }
 
-storage.mode(cd_counts) <- "numeric"
+storage.mode(rna_counts) <- "numeric"
 
 if (
-  anyNA(cd_counts) ||
-    !all(is.finite(cd_counts)) ||
-    any(cd_counts < 0)
+  anyNA(rna_counts) ||
+    !all(is.finite(rna_counts)) ||
+    any(rna_counts < 0)
 ) {
   stop(
-    "CD raw counts contain invalid values."
+    "Raw counts contain invalid values."
   )
 }
 
 if (any(
   abs(
-    cd_counts -
-      round(cd_counts)
+    rna_counts -
+      round(rna_counts)
   ) > 1e-8
 )) {
   stop(
-    "CD counts are not integer-valued. Confirm cd_joined_numeric_matrix.rds is raw counts."
+    "RNA-seq counts must be non-negative integers (not VST, TPM or CPM)."
   )
 }
 
-cd_counts <- round(
-  cd_counts
-)
+if (any(rna_counts > .Machine$integer.max)) {
+  stop("Counts exceed R's 32-bit integer range; check input encoding.")
+}
+rna_counts <- round(rna_counts)
+storage.mode(rna_counts) <- "integer"
 
-storage.mode(cd_counts) <- "integer"
-
-if (anyDuplicated(rownames(cd_counts))) {
-  stop("Duplicated CD gene identifiers detected.")
+if (anyDuplicated(rownames(rna_counts))) {
+  stop("Duplicated gene identifiers detected.")
 }
 
-if (anyDuplicated(colnames(cd_counts))) {
-  stop("Duplicated CD count-matrix sample identifiers detected.")
+if (anyDuplicated(colnames(rna_counts))) {
+  stop("Duplicated count-matrix sample identifiers detected.")
 }
 
-if (!"geo_accession" %in% names(cd_metadata)) {
-  stop("CD metadata requires geo_accession.")
+# Map task-specific source fields to the framework's internal data contract.
+# These provenance fields are never included among predictive features.
+for (field in needed_cols) {
+  if (!cols[[field]] %in% names(rna_metadata)) {
+    stop("Metadata missing configured column: ", cols[[field]])
+  }
+}
+if (!is.null(cols$participant_id) &&
+    !cols$participant_id %in% names(rna_metadata)) {
+  stop("Metadata missing configured participant column: ", cols$participant_id)
+}
+rna_metadata[, sample_id := trimws(as.character(get(cols$sample_id)))]
+rna_metadata[, cohort_group := trimws(as.character(get(cols$cohort)))]
+rna_metadata[, outcome := standardise_outcome(get(cols$outcome))]
+if (anyNA(rna_metadata$sample_id) || any(!nzchar(rna_metadata$sample_id))) {
+  stop("Sample identifiers contain blanks or missing values.")
+}
+if (anyNA(rna_metadata$cohort_group) || any(!nzchar(rna_metadata$cohort_group))) {
+  stop("Cohort identifiers contain blanks or missing values.")
+}
+if (!is.null(cols$participant_id)) {
+  rna_metadata[, participant_id := trimws(as.character(get(cols$participant_id)))]
+}
+if (anyDuplicated(rna_metadata$sample_id)) {
+  stop("Duplicated metadata sample IDs detected.")
 }
 
-if (!"outcome" %in% names(cd_metadata)) {
-  stop("CD metadata requires outcome.")
-}
-
-if ("cohort_group" %in% names(cd_metadata)) {
-
-  cd_metadata[
-    ,
-    cohort_group := trimws(
-      as.character(cohort_group)
-    )
-  ]
-
-  cd_metadata[
-    ,
-    cohort_group := sub(
-      "^CD__",
-      "",
-      cohort_group
-    )
-  ]
-
-} else if ("cohort" %in% names(cd_metadata)) {
-
-  cd_metadata[
-    ,
-    cohort_group := trimws(
-      as.character(cohort)
-    )
-  ]
-
-} else {
-  stop(
-    "CD metadata requires either cohort_group or cohort."
-  )
-}
-
-cd_metadata[
-  ,
-  sample_id := trimws(
-    as.character(geo_accession)
-  )
+common_samples <- colnames(rna_counts)[
+  colnames(rna_counts) %in%
+    rna_metadata$sample_id
 ]
 
-cd_metadata[
-  ,
-  outcome := standardise_cd_outcome(
-    outcome
-  )
-]
-
-if (anyDuplicated(cd_metadata$sample_id)) {
-  stop("Duplicated CD metadata sample IDs detected.")
+if (length(common_samples) < 4L) {
+  stop("At least four aligned observations are required.")
 }
 
-common_samples <- colnames(cd_counts)[
-  colnames(cd_counts) %in%
-    cd_metadata$sample_id
-]
-
-if (length(common_samples) < 82L) {
-  stop(
-    "Fewer than 82 CD samples matched between counts and metadata."
-  )
-}
-
-cd_counts <- cd_counts[
+rna_counts <- rna_counts[
   ,
   common_samples,
   drop = FALSE
@@ -591,43 +516,93 @@ cd_counts <- cd_counts[
 
 metadata_match <- match(
   common_samples,
-  cd_metadata$sample_id
+  rna_metadata$sample_id
 )
 
 if (anyNA(metadata_match)) {
   stop(
-    "CD count/metadata alignment failed."
+    "Count/metadata alignment failed."
   )
 }
 
-cd_metadata <- cd_metadata[
+rna_metadata <- rna_metadata[
   metadata_match
 ]
 
 stopifnot(
   identical(
-    colnames(cd_counts),
-    cd_metadata$sample_id
+    colnames(rna_counts),
+    rna_metadata$sample_id
   )
 )
 
-cd_metadata[
-  ,
-  disease := "CD"
-]
+# Counts for all mode are taken from the ALIGNED input population.
+# Its natural class imbalance is retained rather than forced to 50:50.
+if (SAMPLING_MODE == "all") {
+  EQUAL_CASES <- sum(rna_metadata$outcome == POSITIVE_CLASS)
+  EQUAL_CONTROLS <- sum(rna_metadata$outcome == NEGATIVE_CLASS)
+  FINAL_ICE_CASES <- max(1L, as.integer(round(EQUAL_CASES * fraction)))
+  FINAL_ICE_CONTROLS <- max(1L, as.integer(round(EQUAL_CONTROLS * fraction)))
+}
+if (EQUAL_CASES <= FINAL_ICE_CASES ||
+    EQUAL_CONTROLS <= FINAL_ICE_CONTROLS ||
+    sum(rna_metadata$outcome == POSITIVE_CLASS) < EQUAL_CASES ||
+    sum(rna_metadata$outcome == NEGATIVE_CLASS) < EQUAL_CONTROLS) {
+  stop("Insufficient cases/controls for the configured selection and holdout.")
+}
+if (length(unique(rna_metadata$cohort_group)) < 2L) {
+  stop("This LOCO-enabled benchmark requires >= 2 cohorts. ",
+       "A single-cohort task needs a separate internal-validation workflow.")
+}
+rna_metadata[, disease := DATASET_ID]
 
-observed_cd_cohorts <- sort(
+
+# Optional participant-level leakage audits are enforced if participant IDs
+# are supplied. Study-scoped keys prevent collisions across source studies.
+if ("participant_id" %in% names(rna_metadata)) {
+  rna_metadata[, participant_id := trimws(as.character(participant_id))]
+  if (anyNA(rna_metadata$participant_id) ||
+      any(!nzchar(rna_metadata$participant_id))) {
+    stop("participant_id is incomplete; cannot verify participant independence.")
+  }
+  rna_metadata[, participant_key := paste(cohort_group, participant_id,
+                                         sep = "::")]
+} else {
+  warning("participant_id absent: participant-level split independence ",
+          "cannot be independently verified.", call. = FALSE)
+}
+
+# File fingerprints identify the exact external inputs; MD5 is used solely
+# as an integrity fingerprint, not as a security or anonymisation measure.
+input_fingerprints <- data.frame(
+  role = c("configuration", "counts", "metadata", "partition_manifest", "fold_manifest"),
+  path = c(config_path, counts_path, metadata_path,
+           if (is.null(partition_manifest_path)) NA_character_ else partition_manifest_path,
+           if (is.null(fold_manifest_path)) NA_character_ else fold_manifest_path),
+  stringsAsFactors = FALSE
+)
+input_fingerprints$md5 <- vapply(
+  input_fingerprints$path,
+  function(p) if (is.na(p)) NA_character_ else unname(tools::md5sum(p)),
+  character(1)
+)
+utils::write.csv(input_fingerprints,
+                 file.path(audit_dir, paste0(DATASET_ID, "_private_input_fingerprints.csv")),
+                 row.names = FALSE)
+
+
+observed_cohorts <- sort(
   unique(
     as.character(
-      cd_metadata$cohort_group
+      rna_metadata$cohort_group
     )
   )
 )
 
 cat(
-  "\nObserved CD cohorts after alignment:\n",
+  paste0("\nObserved ", DATASET_ID, " cohorts after alignment:\n"),
   paste(
-    observed_cd_cohorts,
+    observed_cohorts,
     collapse = ", "
   ),
   "\n",
@@ -636,33 +611,33 @@ cat(
 
 
 raw_audit <- data.table::data.table(
-  Population = "Full CD",
-  n = ncol(cd_counts),
+  Population = paste0("Full ", DATASET_ID),
+  n = ncol(rna_counts),
   Controls = sum(
-    cd_metadata$outcome ==
+    rna_metadata$outcome ==
       NEGATIVE_CLASS
   ),
   Cases = sum(
-    cd_metadata$outcome ==
+    rna_metadata$outcome ==
       POSITIVE_CLASS
   ),
   Cohorts = data.table::uniqueN(
-    cd_metadata$cohort_group
+    rna_metadata$cohort_group
   ),
-  Genes = nrow(cd_counts)
+  Genes = nrow(rna_counts)
 )
 
 data.table::fwrite(
   raw_audit,
   file.path(
     audit_dir,
-    "CD_full_raw_input_audit.csv"
+    paste0(DATASET_ID, "_full_raw_input_audit.csv")
   )
 )
 
 cat(
   "\n============================================================\n",
-  "FULL CD RAW DATA\n",
+  paste0("FULL ", DATASET_ID, " RAW DATA\n"),
   "============================================================\n",
   sep = ""
 )
@@ -672,13 +647,13 @@ print(
 )
 
 cat(
-  "\nFull CD cohort x outcome:\n"
+  paste0("\nFull ", DATASET_ID, " cohort x outcome:\n")
 )
 
 print(
   table(
-    cd_metadata$cohort_group,
-    cd_metadata$outcome
+    rna_metadata$cohort_group,
+    rna_metadata$outcome
   )
 )
 
@@ -895,7 +870,7 @@ allocate_integer_target <- function(
 
 
 # ======================================================================
-# 8. COHORT-STRATIFIED EQUAL-SIZE SELECTION: 41 + 41
+# 8. CONFIGURABLE COHORT-STRATIFIED SAMPLE SELECTION
 # ======================================================================
 
 select_equal_size_ids <- function(
@@ -991,24 +966,92 @@ select_equal_size_ids <- function(
   )
 }
 
-selected_cases <- select_equal_size_ids(
-  metadata = cd_metadata,
-  outcome_value = POSITIVE_CLASS,
-  target = EQUAL_CASES,
-  seed = SEED + 10
-)
+# A frozen manifest prevents an ostensibly identical rerun from selecting
+# different observations because of input order, R version or RNG behaviour.
+# It is PRIVATE because it records sample identifiers and case/control status.
+frozen_partition <- NULL
+if (!is.null(partition_manifest_path)) {
+  frozen_partition <- data.table::fread(partition_manifest_path)
+  needed <- c("sample_id", "partition")
+  if (!all(needed %in% names(frozen_partition))) {
+    stop("Partition manifest must contain: ", paste(needed, collapse = ", "))
+  }
+  frozen_partition[, sample_id := as.character(sample_id)]
+  frozen_partition[, partition := as.character(partition)]
+  if (anyNA(frozen_partition$sample_id) ||
+      any(!nzchar(frozen_partition$sample_id)) ||
+      anyDuplicated(frozen_partition$sample_id) ||
+      !all(frozen_partition$partition %in% c("development", "final_ice")) ||
+      nrow(frozen_partition) != EQUAL_CASES + EQUAL_CONTROLS ||
+      !all(frozen_partition$sample_id %in% rna_metadata$sample_id)) {
+    stop("Partition manifest has invalid, missing, duplicated or ",
+         "unrecognised sample IDs/partition labels.")
+  }
+  if ("selection_order" %in% names(frozen_partition)) {
+    if (anyNA(frozen_partition$selection_order) ||
+        anyDuplicated(frozen_partition$selection_order)) {
+      stop("Invalid selection_order in partition manifest.")
+    }
+    data.table::setorder(frozen_partition, selection_order)
+  }
+  matched <- rna_metadata[match(frozen_partition$sample_id, sample_id)]
+  if ("outcome" %in% names(frozen_partition) &&
+      !identical(as.character(frozen_partition$outcome),
+                 as.character(matched$outcome))) {
+    stop("Partition manifest outcome labels disagree with input metadata.")
+  }
+  if ("cohort_group" %in% names(frozen_partition) &&
+      !identical(as.character(frozen_partition$cohort_group),
+                 as.character(matched$cohort_group))) {
+    stop("Partition manifest cohort labels disagree with input metadata.")
+  }
+  if (sum(matched$outcome == POSITIVE_CLASS) != EQUAL_CASES ||
+      sum(matched$outcome == NEGATIVE_CLASS) != EQUAL_CONTROLS ||
+      sum(frozen_partition$partition == "final_ice" &
+          matched$outcome == POSITIVE_CLASS) != FINAL_ICE_CASES ||
+      sum(frozen_partition$partition == "final_ice" &
+          matched$outcome == NEGATIVE_CLASS) != FINAL_ICE_CONTROLS) {
+    stop("Frozen partition does not match configured class and holdout sizes.")
+  }
+}
 
-selected_controls <- select_equal_size_ids(
-  metadata = cd_metadata,
-  outcome_value = NEGATIVE_CLASS,
-  target = EQUAL_CONTROLS,
-  seed = SEED + 20
-)
+manifest_selection <- function(label) {
+  available <- rna_metadata[outcome == label, .N, by = cohort_group]
+  data.table::setnames(available, "N", "Available")
+  chosen <- rna_metadata[
+    sample_id %in% frozen_partition$sample_id & outcome == label,
+    .N, by = cohort_group]
+  data.table::setnames(chosen, "N", "Selected")
+  allocation <- merge(available, chosen, by = "cohort_group", all.x = TRUE)
+  allocation[is.na(Selected), Selected := 0L]
+  data.table::setnames(allocation, "cohort_group", "Cohort")
+  allocation[, Outcome := label]
+  data.table::setcolorder(allocation, c("Outcome", "Cohort", "Available", "Selected"))
+  list(ids = frozen_partition$sample_id[
+         frozen_partition$sample_id %in%
+           rna_metadata[outcome == label, sample_id]],
+       allocation = allocation)
+}
 
-equal_ids <- c(
-  selected_cases$ids,
-  selected_controls$ids
-)
+if (is.null(frozen_partition)) {
+  selected_cases <- select_equal_size_ids(
+    metadata = rna_metadata,
+    outcome_value = POSITIVE_CLASS,
+    target = EQUAL_CASES,
+    seed = SEED + 10
+  )
+  selected_controls <- select_equal_size_ids(
+    metadata = rna_metadata,
+    outcome_value = NEGATIVE_CLASS,
+    target = EQUAL_CONTROLS,
+    seed = SEED + 20
+  )
+  equal_ids <- c(selected_cases$ids, selected_controls$ids)
+} else {
+  selected_cases <- manifest_selection(POSITIVE_CLASS)
+  selected_controls <- manifest_selection(NEGATIVE_CLASS)
+  equal_ids <- frozen_partition$sample_id
+}
 
 equal_size_audit <- data.table::data.table(
   Requested_cases = EQUAL_CASES,
@@ -1033,7 +1076,7 @@ if (
 ) {
   stop(
     paste0(
-      "Equal-size selection failed. ",
+      "Sample selection failed. ",
       "Cases selected = ",
       length(selected_cases$ids),
       "/",
@@ -1046,19 +1089,19 @@ if (
       length(equal_ids),
       "; duplicated IDs = ",
       anyDuplicated(equal_ids),
-      ". Inspect CD_equal_size_41v41_cohort_allocation.csv."
+      ". Inspect the dataset-specific cohort allocation file."
     )
   )
 }
 
-equal_metadata <- cd_metadata[
+equal_metadata <- rna_metadata[
   match(
     equal_ids,
     sample_id
   )
 ]
 
-equal_counts <- cd_counts[
+equal_counts <- rna_counts[
   ,
   equal_metadata$sample_id,
   drop = FALSE
@@ -1086,13 +1129,13 @@ data.table::fwrite(
   equal_allocation,
   file.path(
     split_dir,
-    "CD_equal_size_41v41_cohort_allocation.csv"
+    paste0(DATASET_ID, "_selected_cohort_allocation.csv")
   )
 )
 
 
 # ======================================================================
-# 9. FREEZE 80/20 FINAL ICE: 33/33 TRAIN, 8/8 ICE
+# 9. FREEZE CONFIGURED DEVELOPMENT / HOLDOUT SPLIT
 # ======================================================================
 
 select_final_ice_ids <- function(
@@ -1190,24 +1233,38 @@ select_final_ice_ids <- function(
   )
 }
 
-ice_cases <- select_final_ice_ids(
-  metadata = equal_metadata,
-  outcome_value = POSITIVE_CLASS,
-  target = FINAL_ICE_CASES,
-  seed = SEED + 30
-)
+if (is.null(frozen_partition)) {
+  ice_cases <- select_final_ice_ids(
+    metadata = equal_metadata,
+    outcome_value = POSITIVE_CLASS,
+    target = FINAL_ICE_CASES,
+    seed = SEED + 30
+  )
+  ice_controls <- select_final_ice_ids(
+    metadata = equal_metadata,
+    outcome_value = NEGATIVE_CLASS,
+    target = FINAL_ICE_CONTROLS,
+    seed = SEED + 40
+  )
+  final_ice_ids <- c(ice_cases$ids, ice_controls$ids)
+} else {
+  final_ice_ids <- frozen_partition[partition == "final_ice", sample_id]
+  # These IDs were validated against the configured holdout design.
+}
 
-ice_controls <- select_final_ice_ids(
-  metadata = equal_metadata,
-  outcome_value = NEGATIVE_CLASS,
-  target = FINAL_ICE_CONTROLS,
-  seed = SEED + 40
+# Persist the ACTUAL selected IDs and partitions. Keep this file private;
+# it is essential for exact numerical reproduction of the sampling design.
+private_partition_manifest <- data.table::data.table(
+  sample_id = equal_metadata$sample_id,
+  cohort_group = equal_metadata$cohort_group,
+  outcome = as.character(equal_metadata$outcome),
+  partition = ifelse(equal_metadata$sample_id %in% final_ice_ids,
+                     "final_ice", "development"),
+  selection_order = seq_len(nrow(equal_metadata))
 )
+data.table::fwrite(private_partition_manifest,
+  file.path(split_dir, paste0(DATASET_ID, "_frozen_partition_manifest_PRIVATE.csv")))
 
-final_ice_ids <- c(
-  ice_cases$ids,
-  ice_controls$ids
-)
 
 development_ids <- setdiff(
   equal_metadata$sample_id,
@@ -1240,25 +1297,34 @@ final_ice_counts <- equal_counts[
   drop = FALSE
 ]
 
+if ("participant_key" %in% names(equal_metadata)) {
+  shared_participants <- intersect(development_metadata$participant_key,
+                                   final_ice_metadata$participant_key)
+  if (length(shared_participants) > 0L) {
+    stop("Participant leakage: participant appears in both development ",
+         "and final holdout. Supply participant-grouped frozen partitions.")
+  }
+}
+
 stopifnot(
-  ncol(development_counts) == 66L,
-  ncol(final_ice_counts) == 16L,
+  ncol(development_counts) == EQUAL_CASES + EQUAL_CONTROLS - FINAL_ICE_CASES - FINAL_ICE_CONTROLS,
+  ncol(final_ice_counts) == FINAL_ICE_CASES + FINAL_ICE_CONTROLS,
   sum(
     development_metadata$outcome ==
       POSITIVE_CLASS
-  ) == 33L,
+  ) == EQUAL_CASES - FINAL_ICE_CASES,
   sum(
     development_metadata$outcome ==
       NEGATIVE_CLASS
-  ) == 33L,
+  ) == EQUAL_CONTROLS - FINAL_ICE_CONTROLS,
   sum(
     final_ice_metadata$outcome ==
       POSITIVE_CLASS
-  ) == 8L,
+  ) == FINAL_ICE_CASES,
   sum(
     final_ice_metadata$outcome ==
       NEGATIVE_CLASS
-  ) == 8L,
+  ) == FINAL_ICE_CONTROLS,
   length(
     intersect(
       development_metadata$sample_id,
@@ -1275,10 +1341,22 @@ stopifnot(
   )
 )
 
+# Strict held-out cohort AUROC requires both classes in every development
+# cohort. Fail early rather than silently report undefined metrics.
+cohort_class_counts <- table(development_metadata$cohort_group,
+                             development_metadata$outcome)
+if (any(cohort_class_counts == 0L)) {
+  stop("Every development cohort must contain cases and controls for strict LOCO AUROC. ",
+       "Adjust the sample allocation or input design.")
+}
+if (any(table(development_metadata$outcome) < CV_FOLDS)) {
+  stop("Each development class requires at least cv_folds observations.")
+}
+
 split_summary <- data.table::rbindlist(
   list(
     data.table::data.table(
-      Partition = "Equal-size selected population",
+      Partition = "Selected population",
       n = nrow(equal_metadata),
       Controls = sum(
         equal_metadata$outcome ==
@@ -1291,10 +1369,10 @@ split_summary <- data.table::rbindlist(
       Cohorts = data.table::uniqueN(
         equal_metadata$cohort_group
       ),
-      IR = 1.000
+      IR = max(sum(equal_metadata$outcome == POSITIVE_CLASS), sum(equal_metadata$outcome == NEGATIVE_CLASS)) / min(sum(equal_metadata$outcome == POSITIVE_CLASS), sum(equal_metadata$outcome == NEGATIVE_CLASS))
     ),
     data.table::data.table(
-      Partition = "Development (80%)",
+      Partition = "Development",
       n = nrow(development_metadata),
       Controls = sum(
         development_metadata$outcome ==
@@ -1307,10 +1385,10 @@ split_summary <- data.table::rbindlist(
       Cohorts = data.table::uniqueN(
         development_metadata$cohort_group
       ),
-      IR = 1.000
+      IR = max(sum(development_metadata$outcome == POSITIVE_CLASS), sum(development_metadata$outcome == NEGATIVE_CLASS)) / min(sum(development_metadata$outcome == POSITIVE_CLASS), sum(development_metadata$outcome == NEGATIVE_CLASS))
     ),
     data.table::data.table(
-      Partition = "Final Ice (20%)",
+      Partition = "Final holdout",
       n = nrow(final_ice_metadata),
       Controls = sum(
         final_ice_metadata$outcome ==
@@ -1323,7 +1401,7 @@ split_summary <- data.table::rbindlist(
       Cohorts = data.table::uniqueN(
         final_ice_metadata$cohort_group
       ),
-      IR = 1.000
+      IR = max(sum(final_ice_metadata$outcome == POSITIVE_CLASS), sum(final_ice_metadata$outcome == NEGATIVE_CLASS)) / min(sum(final_ice_metadata$outcome == POSITIVE_CLASS), sum(final_ice_metadata$outcome == NEGATIVE_CLASS))
     )
   )
 )
@@ -1394,7 +1472,7 @@ data.table::fwrite(
   split_summary,
   file.path(
     split_dir,
-    "CD_train_test_split_summary.csv"
+    paste0(DATASET_ID, "_train_test_split_summary.csv")
   )
 )
 
@@ -1402,7 +1480,7 @@ data.table::fwrite(
   split_by_cohort,
   file.path(
     split_dir,
-    "CD_train_test_split_by_cohort.csv"
+    paste0(DATASET_ID, "_train_test_split_by_cohort.csv")
   )
 )
 
@@ -1410,7 +1488,7 @@ data.table::fwrite(
   development_metadata,
   file.path(
     split_dir,
-    "CD_development_metadata.csv"
+    paste0(DATASET_ID, "_development_metadata.csv")
   )
 )
 
@@ -1418,7 +1496,7 @@ data.table::fwrite(
   final_ice_metadata,
   file.path(
     split_dir,
-    "CD_FINAL_ICE_metadata.csv"
+    paste0(DATASET_ID, "_FINAL_ICE_metadata.csv")
   )
 )
 
@@ -1426,7 +1504,7 @@ saveRDS(
   development_counts,
   file.path(
     split_dir,
-    "CD_development_raw_counts.rds"
+    paste0(DATASET_ID, "_development_raw_counts.rds")
   )
 )
 
@@ -1434,7 +1512,7 @@ saveRDS(
   final_ice_counts,
   file.path(
     split_dir,
-    "CD_FINAL_ICE_raw_counts.rds"
+    paste0(DATASET_ID, "_FINAL_ICE_raw_counts.rds")
   )
 )
 
@@ -1561,6 +1639,16 @@ make_stratified_fold_map <- function(
           train_ids
       ]
 
+      if ("participant_key" %in% names(metadata)) {
+        validation_participants <- metadata[
+          sample_id %in% validation$sample_id, participant_key]
+        if (length(intersect(train_metadata$participant_key,
+                             validation_participants)) > 0L) {
+          stop("Participant leakage across development CV folds; ",
+               "use a participant-grouped fold manifest.")
+        }
+      }
+
       if (data.table::uniqueN(
         train_metadata$outcome
       ) < 2L) {
@@ -1579,7 +1667,7 @@ make_stratified_fold_map <- function(
       )) {
         stop(
           "At least one CV validation cohort is absent from its training fold. ",
-          "Reduce CV_FOLDS or revise the equal-size allocation."
+          "Reduce CV_FOLDS or revise the sample allocation."
         )
       }
     }
@@ -1588,20 +1676,134 @@ make_stratified_fold_map <- function(
   output
 }
 
-fold_map <- make_stratified_fold_map(
-  metadata = development_metadata,
-  folds = CV_FOLDS,
-  repeats = CV_REPEATS,
-  seed = SEED
-)
+if (is.null(fold_manifest_path)) {
+  fold_map <- make_stratified_fold_map(
+    metadata = development_metadata,
+    folds = CV_FOLDS,
+    repeats = CV_REPEATS,
+    seed = SEED
+  )
+} else {
+  fold_map <- data.table::fread(fold_manifest_path)
+  required_fold_fields <- c("sample_id", "Repeat", "Fold")
+  if (!all(required_fold_fields %in% names(fold_map))) {
+    stop("Fold manifest requires sample_id, Repeat and Fold.")
+  }
+  fold_map[, sample_id := as.character(sample_id)]
+  fold_map[, `:=`(Repeat = as.integer(Repeat), Fold = as.integer(Fold))]
+  if (anyNA(fold_map$Repeat) || anyNA(fold_map$Fold) ||
+      !all(fold_map$Repeat %in% seq_len(CV_REPEATS)) ||
+      !all(fold_map$Fold %in% seq_len(CV_FOLDS))) {
+    stop("Fold manifest contains missing/out-of-range fold or repeat indices.")
+  }
+  for (r in seq_len(CV_REPEATS)) {
+    current <- fold_map[Repeat == r]
+    if (nrow(current) != nrow(development_metadata) ||
+        anyDuplicated(current$sample_id) ||
+        !setequal(current$sample_id, development_metadata$sample_id) ||
+        !setequal(current$Fold, seq_len(CV_FOLDS))) {
+      stop("Fold manifest must assign every development sample exactly ",
+           "once in each repeat, using all CV folds.")
+    }
+    for (f in seq_len(CV_FOLDS)) {
+      v_ids <- current[Fold == f, sample_id]
+      train_md <- development_metadata[!sample_id %in% v_ids]
+      valid_md <- development_metadata[sample_id %in% v_ids]
+      if (nrow(valid_md) == 0L ||
+          length(unique(train_md$outcome)) < 2L ||
+          !all(unique(valid_md$cohort_group) %in%
+               unique(train_md$cohort_group))) {
+        stop("Frozen CV manifest has an invalid fold composition.")
+      }
+      if ("participant_key" %in% names(train_md) &&
+          length(intersect(train_md$participant_key,
+                           valid_md$participant_key)) > 0L) {
+        stop("Frozen CV manifest splits participants between folds.")
+      }
+    }
+  }
+  # Check optional provenance columns if present.
+  if ("cohort_group" %in% names(fold_map)) {
+    observed_cohorts <- development_metadata$cohort_group[
+      match(fold_map$sample_id, development_metadata$sample_id)]
+    if (!identical(as.character(fold_map$cohort_group),
+                   as.character(observed_cohorts))) {
+      stop("Fold manifest cohort_group does not match metadata.")
+    }
+  }
+  if ("outcome" %in% names(fold_map)) {
+    observed_outcomes <- as.character(development_metadata$outcome[
+      match(fold_map$sample_id, development_metadata$sample_id)])
+    if (!identical(as.character(fold_map$outcome), observed_outcomes)) {
+      stop("Fold manifest outcome does not match metadata.")
+    }
+  }
+  # Keep output schema consistent with seeded-fold generation.
+  fold_map[, cohort_group := as.character(development_metadata$cohort_group[
+    match(sample_id, development_metadata$sample_id)])]
+  fold_map[, outcome := as.character(development_metadata$outcome[
+    match(sample_id, development_metadata$sample_id)])]
+}
 
 data.table::fwrite(
   fold_map,
   file.path(
     benchmark_dir,
-    "CD_development_CV_fold_map.csv"
+    paste0(DATASET_ID, "_development_CV_fold_map.csv")
   )
 )
+
+if (VALIDATE_ONLY) {
+  message("Input, split and fold checks passed for dataset ", DATASET_ID,
+          ". No models fitted (--validate-only true).")
+  capture.output(sessionInfo(), file.path(audit_dir,
+                 paste0(DATASET_ID, "_sessionInfo_validation.txt")))
+  quit(save = "no", status = 0L)
+}
+
+missing_packages <- required_packages[
+  !vapply(required_packages, requireNamespace, quietly = TRUE,
+          FUN.VALUE = logical(1))
+]
+if (length(missing_packages)) {
+  stop("Install these analysis packages before model fitting:\n",
+       paste(missing_packages, collapse = ", "))
+}
+
+# Capture the effective dependency versions at run time, independently
+# of any separately distributed renv.lock for environment restoration.
+package_versions <- data.frame(
+  package = required_packages,
+  version = vapply(required_packages,
+                   function(pkg) as.character(utils::packageVersion(pkg)),
+                   character(1)),
+  stringsAsFactors = FALSE
+)
+utils::write.csv(package_versions,
+  file.path(audit_dir, paste0(DATASET_ID, "_package_versions.csv")), row.names = FALSE)
+
+# Text audit has no source-file data, but is kept private alongside other
+# outputs because the run directory itself includes identifying sample data.
+writeLines(c(
+  paste("analysis_mode:", analysis_mode),
+  paste("dataset_id:", DATASET_ID),
+  paste("sampling_mode:", SAMPLING_MODE),
+  paste("cases_selected:", EQUAL_CASES),
+  paste("controls_selected:", EQUAL_CONTROLS),
+  paste("holdout_cases:", FINAL_ICE_CASES),
+  paste("holdout_controls:", FINAL_ICE_CONTROLS),
+  paste("seed:", SEED),
+  paste("rng_kind:", paste(RNGkind(), collapse = "/")),
+  paste("cv_folds:", CV_FOLDS),
+  paste("cv_repeats:", CV_REPEATS),
+  paste("top_genes:", TOP_N),
+  paste("cohorts:", paste(sort(unique(development_metadata$cohort_group)),
+                          collapse = ",")),
+  paste("manifest_supplied:", !is.null(partition_manifest_path)),
+  paste("fold_map_supplied:", !is.null(fold_manifest_path)),
+  paste("run_started_utc:", format(Sys.time(), tz = "UTC", usetz = TRUE))
+), file.path(audit_dir, paste0(DATASET_ID, "_run_configuration.txt")))
+
 
 
 # ======================================================================
@@ -3362,7 +3564,7 @@ for (
     file.path(
       diagnostic_dir,
       paste0(
-        "CD_development_",
+        paste0(DATASET_ID, "_development_"),
         representation_id,
         ".rds"
       )
@@ -3380,7 +3582,7 @@ data.table::fwrite(
   representation_state_audit,
   file.path(
     audit_dir,
-    "CD_development_representation_state_audit.csv"
+    paste0(DATASET_ID, "_development_representation_state_audit.csv")
   )
 )
 
@@ -3689,7 +3891,7 @@ data.table::fwrite(
   representation_diagnostics,
   file.path(
     diagnostic_dir,
-    "CD_representation_diagnostics.csv"
+    paste0(DATASET_ID, "_representation_diagnostics.csv")
   )
 )
 
@@ -3697,7 +3899,7 @@ data.table::fwrite(
   silhouette_curves,
   file.path(
     diagnostic_dir,
-    "CD_representation_silhouette_curves.csv"
+    paste0(DATASET_ID, "_representation_silhouette_curves.csv")
   )
 )
 
@@ -3871,7 +4073,7 @@ data.table::fwrite(
   technical_summary,
   file.path(
     diagnostic_dir,
-    "CD_sequencing_depth_dependence.csv"
+    paste0(DATASET_ID, "_sequencing_depth_dependence.csv")
   )
 )
 
@@ -3879,7 +4081,7 @@ data.table::fwrite(
   technical_by_cohort,
   file.path(
     diagnostic_dir,
-    "CD_sequencing_depth_by_cohort.csv"
+    paste0(DATASET_ID, "_sequencing_depth_by_cohort.csv")
   )
 )
 
@@ -4201,7 +4403,7 @@ data.table::fwrite(
   full_feature_table,
   file.path(
     concordance_dir,
-    "CD_feature_sets_full_development.csv"
+    paste0(DATASET_ID, "_feature_sets_full_development.csv")
   )
 )
 
@@ -4295,7 +4497,7 @@ for (representation_id in representation_ids) {
     file.path(
       concordance_dir,
       paste0(
-        "CD_Jaccard_matrix_",
+        paste0(DATASET_ID, "_Jaccard_matrix_"),
         representation_id,
         ".csv"
       )
@@ -4311,7 +4513,7 @@ data.table::fwrite(
   jaccard_pairwise,
   file.path(
     concordance_dir,
-    "CD_Jaccard_pairwise.csv"
+    paste0(DATASET_ID, "_Jaccard_pairwise.csv")
   )
 )
 
@@ -4580,7 +4782,7 @@ safe_prediction_metrics <- function(
 
 
 # ======================================================================
-# 22. LEAKAGE-FREE DEVELOPMENT BENCHMARK
+# 22. DEVELOPMENT BENCHMARK: TRAINING-FITTED TRANSFORMATIONS
 # ======================================================================
 
 benchmark_rows <- list()
@@ -5012,7 +5214,7 @@ for (
       partial_results,
       file.path(
         benchmark_dir,
-        "CD_benchmark_fold_results_PARTIAL.csv"
+        paste0(DATASET_ID, "_benchmark_fold_results_PARTIAL.csv")
       )
     )
   }
@@ -5028,7 +5230,7 @@ data.table::fwrite(
   benchmark_results,
   file.path(
     benchmark_dir,
-    "CD_benchmark_fold_results.csv"
+    paste0(DATASET_ID, "_benchmark_fold_results.csv")
   )
 )
 
@@ -5154,7 +5356,7 @@ data.table::fwrite(
   benchmark_summary,
   file.path(
     benchmark_dir,
-    "CD_benchmark_summary.csv"
+    paste0(DATASET_ID, "_benchmark_summary.csv")
   )
 )
 
@@ -5172,7 +5374,7 @@ data.table::fwrite(
   locked_winner,
   file.path(
     benchmark_dir,
-    "CD_locked_winner.csv"
+    paste0(DATASET_ID, "_locked_winner.csv")
   )
 )
 
@@ -5275,7 +5477,7 @@ data.table::fwrite(
   ccv_split_table,
   file.path(
     ccv_dir,
-    "CD_CCV_split_table.csv"
+    paste0(DATASET_ID, "_CCV_split_table.csv")
   )
 )
 
@@ -5311,7 +5513,7 @@ data.table::fwrite(
   ccv_feasibility,
   file.path(
     ccv_dir,
-    "CD_CCV_representation_feasibility.csv"
+    paste0(DATASET_ID, "_CCV_representation_feasibility.csv")
   )
 )
 
@@ -5716,7 +5918,7 @@ data.table::fwrite(
   ccv_results,
   file.path(
     ccv_dir,
-    "CD_CCV_results_VST_fSVA.csv"
+    paste0(DATASET_ID, "_CCV_results_VST_fSVA.csv")
   )
 )
 
@@ -5792,7 +5994,7 @@ data.table::fwrite(
   ccv_summary,
   file.path(
     ccv_dir,
-    "CD_CCV_summary_VST_fSVA.csv"
+    paste0(DATASET_ID, "_CCV_summary_VST_fSVA.csv")
   )
 )
 
@@ -5819,8 +6021,7 @@ print(
 # ======================================================================
 # 25. FINAL MODEL SELECTION FROM STRICT CCV
 #
-# CD uses the same final decision rule as the completed TB equal-size
-# analysis:
+# The common primary-model selection rule is:
 #   - Rank pipelines using strict VST + fSVA leave-one-cohort-out CCV.
 #   - Pre-specify the top four CCV pipelines BEFORE Final Ice.
 #   - Candidate 1 is the primary final model.
@@ -5899,7 +6100,7 @@ data.table::fwrite(
   final_candidates,
   file.path(
     final_ice_dir,
-    "CD_FINAL_ICE_predeclared_top4_CCV_candidates.csv"
+    paste0(DATASET_ID, "_FINAL_ICE_predeclared_top4_CCV_candidates.csv")
   )
 )
 
@@ -5941,15 +6142,15 @@ if (
   )
 }
 
-if (nrow(development_metadata) != 66L) {
+if (nrow(development_metadata) != EQUAL_CASES + EQUAL_CONTROLS - FINAL_ICE_CASES - FINAL_ICE_CONTROLS) {
   stop(
-    "Expected 66 development observations."
+    "Development sample size is inconsistent with the specified design."
   )
 }
 
-if (nrow(final_ice_metadata) != 16L) {
+if (nrow(final_ice_metadata) != FINAL_ICE_CASES + FINAL_ICE_CONTROLS) {
   stop(
-    "Expected 16 Final-Ice observations."
+    "Holdout sample size is inconsistent with the specified design."
   )
 }
 
@@ -5957,14 +6158,14 @@ if (
   sum(
     final_ice_metadata$outcome ==
       POSITIVE_CLASS
-  ) != 8L ||
+  ) != FINAL_ICE_CASES ||
     sum(
       final_ice_metadata$outcome ==
         NEGATIVE_CLASS
-    ) != 8L
+    ) != FINAL_ICE_CONTROLS
 ) {
   stop(
-    "Final Ice must contain exactly 8 cases and 8 controls."
+    "Holdout class counts do not match the configured design."
   )
 }
 
@@ -6088,7 +6289,7 @@ for (
       development_metadata,
     task_id =
       paste0(
-        "CD_FINAL_TRAIN_",
+        paste0(DATASET_ID, "_FINAL_TRAIN_"),
         candidate_index
       )
   )
@@ -6100,7 +6301,7 @@ for (
       final_ice_metadata,
     task_id =
       paste0(
-        "CD_FINAL_ICE_",
+        paste0(DATASET_ID, "_FINAL_ICE_"),
         candidate_index
       )
   )
@@ -6272,7 +6473,7 @@ data.table::fwrite(
   final_candidate_results,
   file.path(
     final_ice_dir,
-    "CD_FINAL_ICE_top4_CCV_candidates_results.csv"
+    paste0(DATASET_ID, "_FINAL_ICE_top4_CCV_candidates_results.csv")
   )
 )
 
@@ -6280,7 +6481,7 @@ data.table::fwrite(
   final_candidate_predictions,
   file.path(
     final_ice_dir,
-    "CD_FINAL_ICE_top4_CCV_candidates_predictions.csv"
+    paste0(DATASET_ID, "_FINAL_ICE_top4_CCV_candidates_predictions.csv")
   )
 )
 
@@ -6288,7 +6489,7 @@ data.table::fwrite(
   final_candidate_genes,
   file.path(
     final_ice_dir,
-    "CD_FINAL_ICE_top4_CCV_candidates_genes.csv"
+    paste0(DATASET_ID, "_FINAL_ICE_top4_CCV_candidates_genes.csv")
   )
 )
 
@@ -6492,7 +6693,7 @@ p_representation_geometry <- ggplot2::ggplot(
   ) +
   ggplot2::labs(
     title =
-      "Representation geometry after equal-size CD sampling",
+      paste0("Representation geometry | ", DATASET_ID, " | ", SAMPLING_MODE),
     subtitle =
       "Outcome separation versus residual cohort clustering",
     x =
@@ -6665,7 +6866,7 @@ p_jaccard_heatmap <- ggplot2::ggplot(
   ggplot2::coord_fixed() +
   ggplot2::labs(
     title =
-      "Feature-selection concordance after equal-size CD sampling",
+      paste0("Feature-selection concordance | ", DATASET_ID, " | ", SAMPLING_MODE),
     subtitle =
       "Pairwise Jaccard similarity among top-50 genes",
     x =
@@ -6800,7 +7001,7 @@ p_benchmark_heatmap <- ggplot2::ggplot(
   ) +
   ggplot2::labs(
     title =
-      "Leakage-free benchmark performance after equal-size CD sampling",
+      "Development CV benchmark after training-fitted preprocessing",
     subtitle =
       "Mean AUROC across cohort × outcome-stratified development CV",
     x =
@@ -7049,7 +7250,7 @@ p_ccv_transportability <- ggplot2::ggplot(
   ) +
   ggplot2::labs(
     title =
-      "Strict cross-cohort transportability after equal-size CD sampling",
+      paste0("Strict cross-cohort transportability | ", DATASET_ID),
     subtitle =
       "Top 10 pipelines ranked by leave-one-cohort-out AUROC; VST + fSVA only",
     x =
@@ -7484,9 +7685,9 @@ p_final_ice_roc <- ggplot2::ggplot() +
   ggplot2::coord_equal() +
   ggplot2::labs(
     title =
-      "Held-out performance of strict-CCV-selected CD pipelines",
+      paste0("Held-out performance of strict-CCV-selected ", DATASET_ID, " pipelines"),
     subtitle =
-      "Final Ice: n = 16 (8 cases, 8 controls); shading shows 95% stratified-bootstrap ROC bands",
+      sprintf("Final holdout: n = %d (%d cases, %d controls); shading shows 95%% bootstrap ROC bands", nrow(final_ice_metadata), FINAL_ICE_CASES, FINAL_ICE_CONTROLS),
     x =
       "False-positive rate (1 - specificity)",
     y =
@@ -7829,7 +8030,7 @@ data.table::fwrite(
   permutation_results,
   file.path(
     permutation_dir,
-    "CD_FINAL_ICE_top4_CCV_permutation_summary.csv"
+    paste0(DATASET_ID, "_FINAL_ICE_top4_CCV_permutation_summary.csv")
   )
 )
 
@@ -8103,7 +8304,7 @@ data.table::fwrite(
   delong_results,
   file.path(
     final_ice_dir,
-    "CD_FINAL_ICE_top4_CCV_paired_DeLong.csv"
+    paste0(DATASET_ID, "_FINAL_ICE_top4_CCV_paired_DeLong.csv")
   )
 )
 
@@ -8190,21 +8391,21 @@ figure_sizes <- list(
 
 figure_file_stems <- c(
   Figure_1 =
-    "Figure_1_CD_equal_size_representation_geometry",
+    paste0("Figure_1_", DATASET_ID, "_", SAMPLING_MODE, "_representation_geometry"),
   Figure_2 =
-    "Figure_2_CD_equal_size_Jaccard_heatmap",
+    paste0("Figure_2_", DATASET_ID, "_", SAMPLING_MODE, "_Jaccard_heatmap"),
   Figure_3 =
-    "Figure_3_CD_equal_size_development_CV_heatmap",
+    paste0("Figure_3_", DATASET_ID, "_", SAMPLING_MODE, "_development_CV_heatmap"),
   Figure_4 =
-    "Figure_4_CD_equal_size_pipeline_robustness",
+    paste0("Figure_4_", DATASET_ID, "_", SAMPLING_MODE, "_pipeline_robustness"),
   Figure_5 =
-    "Figure_5_CD_equal_size_strict_CCV_transportability",
+    paste0("Figure_5_", DATASET_ID, "_", SAMPLING_MODE, "_strict_CCV_transportability"),
   Figure_6 =
-    "Figure_6_CD_equal_size_CV_vs_CCV",
+    paste0("Figure_6_", DATASET_ID, "_", SAMPLING_MODE, "_CV_vs_CCV"),
   Figure_7 =
-    "Figure_7_CD_equal_size_top4_CCV_Final_Ice_ROC",
+    paste0("Figure_7_", DATASET_ID, "_", SAMPLING_MODE, "_top4_CCV_Final_Ice_ROC"),
   Figure_8 =
-    "Figure_8_CD_equal_size_Final_Ice_permutation"
+    paste0("Figure_8_", DATASET_ID, "_", SAMPLING_MODE, "_Final_Ice_permutation")
 )
 
 for (
@@ -8342,17 +8543,17 @@ data.table::fwrite(
   failure_summary,
   file.path(
     audit_dir,
-    "CD_failure_summary.csv"
+    paste0(DATASET_ID, "_failure_summary.csv")
   )
 )
 
 writeLines(
   c(
-    "CD EQUAL-SIZE 41/41 CLEAN BENCHMARK",
+    paste0("TRACE-Omics | ", DATASET_ID, " | ", SAMPLING_MODE, " sampling"),
     "",
     "DESIGN",
-    "Full CD raw population -> cohort-stratified 41 cases + 41 controls.",
-    "Frozen 80/20 split -> 66 development (33/33) + 16 Final Ice (8/8).",
+    sprintf("Aligned %s cohort data -> selected %d cases + %d controls.", DATASET_ID, EQUAL_CASES, EQUAL_CONTROLS),
+    sprintf("Development: %d cases/%d controls; holdout: %d cases/%d controls.", EQUAL_CASES-FINAL_ICE_CASES, EQUAL_CONTROLS-FINAL_ICE_CONTROLS, FINAL_ICE_CASES, FINAL_ICE_CONTROLS),
     "",
     "REPRESENTATIONS",
     "VST + fSVA",
@@ -8378,20 +8579,28 @@ writeLines(
     "Strict-CCV rank 1 remains the primary model regardless of Final-Ice ranking.",
     "",
     "FINAL ICE",
-    "The same 16 Final-Ice samples are evaluated by the four predeclared candidates.",
+    sprintf("The same %d holdout samples are evaluated by four predeclared candidates.", FINAL_ICE_CASES+FINAL_ICE_CONTROLS),
     "AUROC CIs are DeLong; ROC ribbons are stratified bootstrap confidence bands.",
     "",
     "PERMUTATION",
     "1000 cohort-stratified label permutations with frozen Final-Ice prediction scores.",
     "",
+    "REPRODUCIBILITY AND DATA GOVERNANCE",
+    paste("Run status:", analysis_mode),
+    "Exact historical reproduction requires the original frozen partition and fold maps.",
+    "Input fingerprints and selected sample IDs are saved in this RESTRICTED directory.",
+    "Do not upload this output directory, its split files or predictions to GitHub/Zenodo.",
+    "Only independently reviewed aggregate figures/tables may be made public.",
+    "This script has not been independently re-executed or scientifically validated by the editor.",
+    "",
     "IMPORTANT",
-    "The equal-size population has artificial prevalence = 0.50.",
-    "AUPRC, Brier and calibration reflect this experimental prevalence rather than natural CD prevalence."
+    sprintf("Selected-sample case prevalence: %.3f (mode: %s).", EQUAL_CASES/(EQUAL_CASES+EQUAL_CONTROLS), SAMPLING_MODE),
+    "AUPRC, Brier and calibration reflect the sampled/held-out case prevalence, not necessarily deployment prevalence."
   ),
   con =
     file.path(
       output_root,
-      "README_CD_EQUAL_SIZE_EXPERIMENT.txt"
+      paste0("README_", DATASET_ID, "_", SAMPLING_MODE, "_EXPERIMENT.txt")
     )
 )
 
@@ -8400,7 +8609,7 @@ capture.output(
   file =
     file.path(
       audit_dir,
-      "CD_sessionInfo.txt"
+      paste0(DATASET_ID, "_sessionInfo.txt")
     )
 )
 
@@ -8411,7 +8620,7 @@ capture.output(
 
 cat(
   "\n\n============================================================\n",
-  "CD EQUAL-SIZE 41/41 EXPERIMENT COMPLETE\n",
+  paste0(DATASET_ID, " ", SAMPLING_MODE, " EXPERIMENT COMPLETE\n"),
   "============================================================\n",
   sep = ""
 )
@@ -8500,7 +8709,7 @@ if (nrow(failure_summary) == 0L) {
     "\nWARNING: some fits failed. Inspect:\n",
     file.path(
       audit_dir,
-      "CD_failure_summary.csv"
+      paste0(DATASET_ID, "_failure_summary.csv")
     ),
     "\n",
     sep = ""
