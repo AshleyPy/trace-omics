@@ -901,7 +901,7 @@ make_repeated_fold_map <- function(metadata,
 
     rows[[repeat_index]] <- data.table(
       sample_id = metadata$sample_id,
-      repeat = repeat_index,
+      `repeat` = repeat_index,
       fold = current_fold,
       cohort = as.character(
         metadata$cohort_group
