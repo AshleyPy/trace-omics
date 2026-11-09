@@ -17,7 +17,7 @@ foundation_class_weights <- function(outcome, negative_class = "control",
 
 select_foundation_rf_features <- function(train_matrix, train_metadata, top_n,
                                           seed = 7832L, rf_prefilter = 3000L,
-                                          importance_trees = 250L, threads = 1L,
+                                          importance_trees = 250L, threads = 0L,
                                           positive_class = "case", negative_class = "control") {
   trace_require(c("matrixStats", "ranger"))
   if (!is.matrix(train_matrix) || is.null(rownames(train_matrix)) ||
@@ -26,7 +26,8 @@ select_foundation_rf_features <- function(train_matrix, train_metadata, top_n,
   if (!"outcome" %in% names(train_metadata)) stop("Metadata require outcome.")
   top_n <- as.integer(top_n)
   rf_prefilter <- as.integer(rf_prefilter)
-  if (top_n < 1L || rf_prefilter < top_n || importance_trees < 1L || threads < 1L)
+  if (top_n < 1L || rf_prefilter < top_n || importance_trees < 1L ||
+      length(threads) != 1L || !is.finite(threads) || threads < 0L)
     stop("Invalid RF feature selection settings.")
   gene_variance <- matrixStats::rowVars(train_matrix)
   valid <- is.finite(gene_variance) & gene_variance > 0
@@ -81,7 +82,7 @@ to_numpy_y <- function(y, np = NULL, positive_class = "case") {
 }
 
 fit_lightgbm_object <- function(x_train, y_train, parameters, seed = 7832L,
-                                lightgbm_py = NULL, np = NULL, threads = 1L) {
+                                lightgbm_py = NULL, np = NULL, threads = -1L) {
   module <- trace_python_module("lightgbm", lightgbm_py)
   np <- trace_python_module("numpy", np)
   required <- c("n_estimators", "learning_rate", "num_leaves", "max_depth",
@@ -125,6 +126,7 @@ predict_python_classifier <- function(model, x_test, np = NULL) {
   positive
 }
 
+# Dissertation TabPFN models were fitted on CPU; device stays configurable.
 fit_tabpfn_object <- function(x_train, y_train, seed = 7832L,
                               device = "cpu", tabpfn_py = NULL, np = NULL) {
   module <- trace_python_module("tabpfn", tabpfn_py)
@@ -153,4 +155,8 @@ trace_lightgbm_grid <- function() {
     stringsAsFactors = FALSE
   )
 }
-lightgbm_grid <- trace_lightgbm_grid()
+
+lightgbm_grid <- data.table::as.data.table(
+  trace_lightgbm_grid()
+)
+

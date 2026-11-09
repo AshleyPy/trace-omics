@@ -6,7 +6,12 @@
 trace_rf <- function(train, new, meta, new_meta, representation, genes,
                      weighted = FALSE, seed = 7832L, parameters = list(),
                      config = list(), project_root = NULL) {
-  trace_require(c("ranger", "matrixStats"))
+  if (!"outcome" %in% names(meta) && "disease" %in% names(meta)) {
+    legacy <- as.character(meta$disease)
+    if (anyNA(legacy) || !all(legacy %in% c("control", "case")))
+      stop("Legacy disease column must contain control/case outcome labels.")
+    meta$outcome <- factor(legacy, levels = c("control", "case"))
+  }
   opt <- function(name, default) if (is.null(parameters[[name]])) default else parameters[[name]]
   prefilter <- as.integer(opt("prefilter", 3000L))
   screening_trees <- as.integer(opt("screening_trees", 250L))
@@ -24,7 +29,10 @@ trace_rf <- function(train, new, meta, new_meta, representation, genes,
   if (length(keep) < genes) stop("Fewer variable training genes than requested.")
   x <- as.data.frame(t(z$train[keep, , drop = FALSE]), check.names = FALSE)
   names(x) <- make.names(names(x), unique = TRUE)
-  y <- factor(as.character(meta$outcome), levels = c("control", "case"))
+  label_col <- if ("outcome" %in% names(meta)) "outcome" else
+    if ("disease" %in% names(meta)) "disease" else
+      stop("RF metadata require outcome (or legacy disease) labels.")
+  y <- factor(as.character(meta[[label_col]]), levels = c("control", "case"))
   if (anyNA(y) || length(unique(y)) < 2L) stop("Both outcome classes are needed.")
   weights <- if (isTRUE(weighted)) {
     n <- table(y)
@@ -59,9 +67,16 @@ trace_threshold <- function(predictions, thresholds = seq(0.05, 0.95, 0.01),
                             group_col = "study", truth_col = "outcome",
                             probability_col = "probability") {
   predictions <- as.data.frame(predictions, stringsAsFactors = FALSE)
+  if (!truth_col %in% names(predictions) && identical(truth_col, "outcome") &&
+      "disease" %in% names(predictions)) truth_col <- "disease"
   required <- c(group_col, truth_col, probability_col)
   if (!all(required %in% names(predictions)))
     stop("Development predictions lack: ", paste(setdiff(required, names(predictions)), collapse = ", "))
+  if (!all(as.character(predictions[[truth_col]]) %in% c("control", "case")))
+    stop("Threshold truth labels must be case and control.")
+  if (!is.numeric(predictions[[probability_col]]) ||
+      any(!is.finite(predictions[[probability_col]])))
+    stop("Threshold probabilities must be finite numeric values.")
   if (anyNA(predictions[, required]) ||
       any(predictions[[probability_col]] < 0 | predictions[[probability_col]] > 1))
     stop("Invalid development predictions.")
