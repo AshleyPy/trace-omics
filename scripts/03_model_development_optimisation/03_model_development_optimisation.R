@@ -894,7 +894,7 @@ make_repeated_fold_map <- function(metadata,
       seed = make_trace_subseed(
         seed,
         "repeat",
-        `repeat` = repeat_index
+        repeat_index
       ),
       include_disease = include_disease
     )
@@ -2409,7 +2409,7 @@ run_experiment_1 <- function() {
 
             failure_rows[[failure_counter]] <- data.table(
               disease = disease_id,
-              repeat = repeat_index,
+              `repeat` = repeat_index,
               fold = fold_id,
               representation = representation_id,
               stage = "representation",
@@ -2451,7 +2451,7 @@ run_experiment_1 <- function() {
 
               failure_rows[[failure_counter]] <- data.table(
                 disease = disease_id,
-                repeat = repeat_index,
+                `repeat` = repeat_index,
                 fold = fold_id,
                 representation = representation_id,
                 stage = "feature_selection",
@@ -2483,7 +2483,7 @@ run_experiment_1 <- function() {
 
             gene_rows[[gene_counter]] <- data.table(
               disease = disease_id,
-              repeat = repeat_index,
+              `repeat` = repeat_index,
               fold = fold_id,
               representation = representation_id,
               selector = selector_id,
@@ -2524,7 +2524,7 @@ run_experiment_1 <- function() {
 
                 failure_rows[[failure_counter]] <- data.table(
                   disease = disease_id,
-                  repeat = repeat_index,
+                  `repeat` = repeat_index,
                   fold = fold_id,
                   representation = representation_id,
                   stage = "learner",
@@ -2548,7 +2548,7 @@ run_experiment_1 <- function() {
 
               prediction_rows[[prediction_counter]] <- data.table(
                 disease = disease_id,
-                repeat = repeat_index,
+                `repeat` = repeat_index,
                 fold = fold_id,
                 representation = representation_id,
                 selector = selector_id,
@@ -2568,7 +2568,7 @@ run_experiment_1 <- function() {
               metric_rows[[metric_counter]] <- cbind(
                 data.table(
                   disease = disease_id,
-                  repeat = repeat_index,
+                  `repeat` = repeat_index,
                   fold = fold_id,
                   representation = representation_id,
                   selector = selector_id,
