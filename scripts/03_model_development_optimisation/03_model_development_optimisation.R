@@ -894,13 +894,13 @@ make_repeated_fold_map <- function(metadata,
       seed = make_trace_subseed(
         seed,
         "repeat",
-        repeat_index
+        `repeat` = repeat_index
       ),
       include_disease = include_disease
     )
 
     rows[[repeat_index]] <- data.table(
-      sample_id = metadata$sample_id,
+      sample_id = metadata$`sample_id`,
       `repeat` = repeat_index,
       fold = current_fold,
       cohort = as.character(
@@ -2341,11 +2341,7 @@ run_experiment_1 <- function() {
 
     for (repeat_index in 1:2) {
       for (fold_id in 1:10) {
-        validation_ids <- fold_map[
-          repeat == repeat_index &
-            fold == fold_id,
-          sample_id
-        ]
+        validation_ids <- fold_map[`repeat` == repeat_index & fold == fold_id, sample_id]
 
         training_ids <- setdiff(
           data$metadata$sample_id,
