@@ -1,0 +1,32 @@
+# TRACE-Omics disease-agnostic configuration example.
+# Paths are relative to the repository root, except for output which MUST be outside it.
+# DO NOT commit counts, metadata, patient identifiers or derived sample-level results.
+counts: "data/private_counts.rds"
+metadata: "data/private_metadata.csv"
+partition: "data/private_partition_manifest.csv"
+output: "/secure-output/trace-omics/example-run-001"
+seed: 7832
+partition_mode: "manifest"
+# To create a NEW split for exploratory work (NOT dissertation reproduction),
+# use partition_mode: "generate" and development_fraction: 0.8.
+columns:
+  sample_id: "sample_id"
+  participant_id: "participant_id"
+  study: "study"
+  outcome: "outcome"
+# If needed, map original labels explicitly, e.g.:
+# class_map:
+#   case: ["affected"]
+#   control: ["unaffected"]
+preprocessing:
+  minimum_total_count: 10
+  minimum_genes: 50
+  max_surrogate_variables: 50
+
+# Example ONLY; choose the specification based on development data, not holdout.
+pipeline:
+  representation: "VST_fSVA"
+  filter: "information_gain"
+  genes: 50
+  learner: "RBF_SVM"
+  parameters: {}

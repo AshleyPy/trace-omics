@@ -259,7 +259,9 @@ read_count_table <- function(path, symbol_col = "symbol") {
 
   df[[symbol_col]] <- trimws(as.character(df[[symbol_col]]))
   df <- df[!is.na(df[[symbol_col]]) & nzchar(df[[symbol_col]]), , drop = FALSE]
-  df <- df[!duplicated(df[[symbol_col]]), , drop = FALSE]
+  if (anyDuplicated(df[[symbol_col]])) {
+    stop("Duplicated gene identifiers in count table: ", path, call. = FALSE)
+  }
 
   df
 }
@@ -329,8 +331,11 @@ merge_count_tables_by_symbol <- function(count_files, symbol_col = "symbol") {
   rownames(merged) <- make.unique(as.character(merged[[symbol_col]]))
   merged[[symbol_col]] <- NULL
 
+  if (anyDuplicated(names(merged))) {
+    stop("Duplicated sample identifiers across count tables.", call. = FALSE)
+  }
   mat <- as.matrix(merged)
-  storage.mode(mat) <- "numeric"
+  suppressWarnings(storage.mode(mat) <- "numeric")
 
   if (anyNA(mat)) {
     stop("Merged count matrix contains NA values.", call. = FALSE)
@@ -340,7 +345,13 @@ merge_count_tables_by_symbol <- function(count_files, symbol_col = "symbol") {
     stop("Merged count matrix contains non-finite values.", call. = FALSE)
   }
 
+  if (any(mat < 0) || any(abs(mat - round(mat)) > 1e-8)) {
+    stop("Count matrix must contain non-negative integer values; do not round normalised expression.", call. = FALSE)
+  }
   mat <- round(mat)
+  if (any(mat > .Machine$integer.max)) {
+    stop("Count matrix has values exceeding R integer range.", call. = FALSE)
+  }
   storage.mode(mat) <- "integer"
 
   mat
@@ -539,7 +550,8 @@ assert_binary_outcome <- function(metadata,
 }
 
 assert_predictor_isolation <- function(feature_names,
-                                       forbidden = c("sample_id", "cohort", "outcome", "disease")) {
+                                       forbidden = c("sample_id", "participant_id", "study", "cohort", "cohort_group",
+                                                  "outcome", "disease", "disease_group", "repository_accession", "partition")) {
   leaked <- intersect(as.character(feature_names), forbidden)
 
   if (length(leaked) > 0) {
@@ -592,6 +604,10 @@ clean_classif_task <- function(task,
   }
 
   task <- task$clone(deep = TRUE)
+  if (!positive %in% task$class_names) {
+    stop("Requested positive class missing from task: ", positive, call. = FALSE)
+  }
+  task$positive <- positive
 
   removable <- intersect(remove_cols, task$feature_names)
 
@@ -638,66 +654,69 @@ task_to_dataframe <- function(task) {
 # 8. Analytical label helpers
 # ==============================================================================
 
-clean_representation_label <- function(x) {
+# Ordered regex mapping implemented in base R to reduce CI-only dependencies.
+# The first matching rule wins, preserving the legacy case_when() precedence.
+trace_map_labels <- function(x, patterns, values, fallback = c("input", "NA", "None")) {
+  fallback <- match.arg(fallback)
   x <- as.character(x)
+  out <- if (fallback == "input") x else if (fallback == "NA")
+    rep(NA_character_, length(x)) else rep("None", length(x))
+  assigned <- rep(FALSE, length(x))
+  for (i in seq_along(patterns)) {
+    hit <- !assigned & !is.na(x) & grepl(patterns[[i]], x, perl = TRUE)
+    out[hit] <- values[[i]]
+    assigned[hit] <- TRUE
+  }
+  out
+}
 
-  dplyr::case_when(
-    stringr::str_detect(x, "VST_ComBatRef|ComBat[-_ ]?Ref") ~ "VST + ComBat-Ref",
-    stringr::str_detect(x, "ComBatSeq_log1p|ComBat[-_ ]?Seq.*log1p") ~ "ComBat-Seq + log1p",
-    stringr::str_detect(x, "VST_fSVA|VST_SVA|fSVA|SVA") ~ "VST + fSVA",
-    stringr::str_detect(x, "VST_ComBat|VST \+ ComBat|ComBat") ~ "VST + ComBat",
-    stringr::str_detect(x, "VST_only|VST only|VST-only") ~ "VST only",
-    stringr::str_detect(x, "RAW_counts|Raw counts|raw counts") ~ "Raw counts",
-    stringr::str_detect(x, "log2\(CPM\+1\)|logCPM|CPM") ~ "log2(CPM+1)",
-    TRUE ~ x
+clean_representation_label <- function(x) {
+  trace_map_labels(x,
+    patterns = c(
+      "VST_ComBatRef|ComBat[-_ ]?Ref",
+      "ComBatSeq_log1p|ComBat[-_ ]?Seq.*log1p",
+      "VST_fSVA|VST_SVA|fSVA|SVA",
+      "VST_ComBat|VST [+] ComBat|ComBat",
+      "VST_only|VST only|VST-only",
+      "RAW_counts|Raw counts|raw counts",
+      "log2[(]CPM[+]1[)]|logCPM|CPM"
+    ),
+    values = c("VST + ComBat-Ref", "ComBat-Seq + log1p", "VST + fSVA",
+               "VST + ComBat", "VST only", "Raw counts", "log2(CPM+1)")
   )
 }
 
 clean_feature_selection_label <- function(x) {
-  x <- as.character(x)
-
-  dplyr::case_when(
-    stringr::str_detect(x, "HybridA|Hybrid A") ~ "Hybrid A",
-    stringr::str_detect(x, "HybridB|Hybrid B") ~ "Hybrid B",
-    stringr::str_detect(x, "information_gain|Info_Gain|Information gain") ~ "Information gain",
-    stringr::str_detect(x, "boruta|Boruta") ~ "Boruta",
-    stringr::str_detect(x, "cmim|CMIM") ~ "CMIM",
-    stringr::str_detect(x, "mrmr|mRMR") ~ "mRMR",
-    stringr::str_detect(x, "anova|ANOVA") ~ "ANOVA",
-    stringr::str_detect(x, "\bauc\b|\bAUC\b") ~ "AUC",
-    stringr::str_detect(x, "importance|RF_Imp|RF importance") ~ "RF importance",
-    stringr::str_detect(x, "variance|RF_Var|RF variance") ~ "RF variance",
-    TRUE ~ NA_character_
+  trace_map_labels(x,
+    patterns = c("HybridA|Hybrid A", "HybridB|Hybrid B",
+                 "information_gain|Info_Gain|Information gain",
+                 "boruta|Boruta", "cmim|CMIM", "mrmr|mRMR",
+                 "anova|ANOVA", "\\b(?:auc|AUC)\\b",
+                 "importance|RF_Imp|RF importance", "variance|RF_Var|RF variance"),
+    values = c("Hybrid A", "Hybrid B", "Information gain", "Boruta", "CMIM",
+               "mRMR", "ANOVA", "AUC", "RF importance", "RF variance"),
+    fallback = "NA"
   )
 }
 
 clean_class_handling_label <- function(x) {
-  x <- as.character(x)
-
-  dplyr::case_when(
-    stringr::str_detect(x, "SMOTE") ~ "SMOTE",
-    stringr::str_detect(x, "Upsample|UpSample") ~ "Upsample",
-    stringr::str_detect(x, "Downsample|DownSample") ~ "Downsample",
-    stringr::str_detect(x, "Weighted|Class weighted|class_weight") ~ "Class weighted",
-    stringr::str_detect(x, "NBA|NoCBA|None|Unweighted") ~ "None",
-    TRUE ~ "None"
+  trace_map_labels(x,
+    patterns = c("SMOTE", "Upsample|UpSample", "Downsample|DownSample",
+                 "Weighted|Class weighted|class_weight",
+                 "NBA|NoCBA|None|Unweighted"),
+    values = c("SMOTE", "Upsample", "Downsample", "Class weighted", "None"),
+    fallback = "None"
   )
 }
 
 clean_learner_label <- function(x) {
-  x <- as.character(x)
-
-  dplyr::case_when(
-    stringr::str_detect(x, "Featureless") ~ "Featureless",
-    stringr::str_detect(x, "Naive|naive_bayes") ~ "Naive Bayes",
-    stringr::str_detect(x, "Linear_SVM|Linear SVM") ~ "Linear SVM",
-    stringr::str_detect(x, "RBF_SVM|RBF SVM") ~ "RBF SVM",
-    stringr::str_detect(x, "RandomForest|Random Forest|ranger") ~ "Random Forest",
-    stringr::str_detect(x, "LightGBM|lightgbm") ~ "LightGBM",
-    stringr::str_detect(x, "TabPFN|tabpfn") ~ "TabPFN",
-    stringr::str_detect(x, "XGBoost|xgboost") ~ "XGBoost",
-    stringr::str_detect(x, "C50|C5\.0|C5") ~ "C5.0",
-    TRUE ~ x
+  trace_map_labels(x,
+    patterns = c("Featureless", "Naive|naive_bayes", "Linear_SVM|Linear SVM",
+                 "RBF_SVM|RBF SVM", "RandomForest|Random Forest|ranger",
+                 "LightGBM|lightgbm", "TabPFN|tabpfn", "XGBoost|xgboost",
+                 "C50|C5[.]0|C5"),
+    values = c("Featureless", "Naive Bayes", "Linear SVM", "RBF SVM",
+               "Random Forest", "LightGBM", "TabPFN", "XGBoost", "C5.0")
   )
 }
 
@@ -779,6 +798,10 @@ standardise_prediction_table <- function(dt,
   dt$truth <- factor(as.character(dt$truth), levels = c(negative_class, positive_class))
   dt$response <- factor(as.character(dt$response), levels = c(negative_class, positive_class))
   dt$prob_case <- as.numeric(dt[[prob_col]])
+  if (anyNA(dt$truth) || anyNA(dt$response) || anyNA(dt$prob_case) ||
+      any(!is.finite(dt$prob_case)) || any(dt$prob_case < 0 | dt$prob_case > 1)) {
+    stop("Prediction table has invalid labels or case probabilities.", call. = FALSE)
+  }
   dt$y <- ifelse(as.character(dt$truth) == positive_class, 1, 0)
 
   dt
@@ -834,4 +857,4 @@ set_trace_subseed <- function(seed = 7832, ...) {
 
 # ==============================================================================
 # End of TRACE-Omics R/utils_io.R
-# ==============================================================================
+# =========================================

@@ -1,4 +1,8 @@
-# Verbatim functions from legacy/equal_size/01.R. Loaded into a private environment.
+# TRACE-Omics historical training-estimated preprocessing and FS implementations.
+# Adapted from legacy/equal_size/01.R; maintained for method-level traceability.
+# These numerical algorithms have NOT yet been independently validated against
+# all dissertation outputs. They must be exercised on controlled fixtures before
+# any claim of validated external transportability or numerical reproduction.
 
 seed_for <- function(...) {
   values <- as.numeric(c(...))
@@ -67,6 +71,9 @@ fit_apply_frozen_vst <- function(
     drop = FALSE
   ]
 
+  if (anyNA(train_counts) || any(!is.finite(train_counts)) || any(train_counts < 0)) {
+    stop("Training counts must be finite and non-negative.")
+  }
   training_total_counts <- rowSums(
     train_counts
   )
@@ -955,6 +962,9 @@ fit_frozen_combatseq <- function(
   batch_train
 ) {
 
+  if (anyNA(train_counts) || any(!is.finite(train_counts)) || any(train_counts < 0)) {
+    stop("Training counts must be finite and non-negative.")
+  }
   training_total_counts <- rowSums(
     train_counts
   )
