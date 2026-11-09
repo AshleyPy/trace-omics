@@ -894,7 +894,7 @@ make_repeated_fold_map <- function(metadata,
       seed = make_trace_subseed(
         seed,
         "repeat",
-        repeat_index
+        `repeat` = repeat_index
       ),
       include_disease = include_disease
     )
