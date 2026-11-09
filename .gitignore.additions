@@ -1,0 +1,13 @@
+# Suggested additions; MERGE into the existing .gitignore after review.
+# Keep raw, derived and individual-level data out of public software archives.
+data/raw/
+data/processed/
+data/private_*
+results/private/
+outputs/
+runs/
+*.RData
+*.rda
+.Rhistory
+.Rproj.user/
+# Adapt these rules to your institution's data-sharing requirements.
