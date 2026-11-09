@@ -51,7 +51,7 @@
 #     * VST only versus log2(CPM + 1).
 #     * Training-restricted RF permutation feature ranking.
 #     * RBF-SVM four-configuration screen and Random Forest screen.
-#     * 25 / 50 / 100 genes x unweighted / class-weighted models.
+#     * 25 / 50 / 100 genes x unweighted / class-weighted models. 
 #     * Final Random Forest configuration ranked by:
 #         1. highest worst-cohort AUROC;
 #         2. highest mean LOCO AUROC;
