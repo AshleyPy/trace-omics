@@ -49,7 +49,7 @@ without confirming that no additional source has been lost.
 ## Limits
 
 Static syntax and smoke checks do not prove computational reproducibility.
-Machine-learning results require packages, a locked environment, authorised
+Machine learning results require packages, a locked environment, authorised
 input datasets and comparison against the dissertation's frozen outputs.
 See `docs/PUBLICATION_CHECKLIST.md` for the scientific validation tasks.
 
