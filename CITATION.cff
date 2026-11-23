@@ -1,13 +1,34 @@
-## Citation
 
-TRACE-Omics was developed as part of doctoral research at Stellenbosch University.
+cff-version: 1.2.0
+message: "If you use TRACE-Omics in your research, please cite this software."
+type: software
 
-If you use or adapt this repository, please acknowledge the software and its author.
+title: "TRACE-Omics: A Framework for Robust and Generalisable Transcriptomic Machine Learning"
 
-**Suggested software acknowledgement:**
+authors:
+  - family-names: Ehlers
+    given-names: Ashley
 
-Ehlers, A. (2026). *TRACE-Omics: A framework for robust and generalisable transcriptomic machine learning*. GitHub repository. https://github.com/AshleyPy/trace-omics
+abstract: >-
+  TRACE-Omics is a research framework developed to investigate
+  the robustness, reproducibility and cross-cohort generalisability
+  of machine-learning models trained on high-dimensional
+  transcriptomic data. The framework examines the influence
+  of analytical pipeline choices, cohort heterogeneity and
+  validation strategies on predictive performance.
 
-A formal dissertation citation, publication reference or archived software DOI may be added when available.
+keywords:
+  - transcriptomics
+  - machine learning
+  - bioinformatics
+  - computational biology
+  - reproducibility
+  - generalisability
+  - cross-cohort validation
+  - model transportability
 
----
+repository-code: "https://github.com/AshleyPy/trace-omics"
+url: "https://github.com/AshleyPy/trace-omics"
+
+license: MIT
+
