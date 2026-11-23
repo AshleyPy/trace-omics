@@ -1,5 +1,9 @@
-# Contributing
+## Contributing
 
-TRACE-Omics accompanies a doctoral dissertation and prioritises analytical provenance. Contributions should preserve the development/evaluation boundary, retain sample and study identifiers outside the predictive feature space, add tests for new data-adaptive operations and document any change to the statistical estimand.
+Contributions that improve reproducibility, clarity, testing, documentation and methodological reliability are welcome.
 
-For changes that affect reported analyses, record the input manifest, seed, software environment and prediction-level comparison with the preceding implementation.
+Contributors should preserve the separation between model development and evaluation, document changes to analytical assumptions and provide appropriate tests for new functionality.
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution guidelines.
+
+---
