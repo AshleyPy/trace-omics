@@ -1,7 +1,5 @@
 # TRACE-Omics: reproducibility and CI patch
 
-**Status: publication candidate requiring validation.** This is not a complete turnkey release of all dissertation experiments.
-
 This patch contains `R/core.R`, `R/supplied_functions.R`, `R/utils_io.R`,
 `R/study_models.R`, `R/supplied_architecture_functions.R`,
 `.github/workflows/r-parse.yml`, `tests/parse_all.R`, `tests/test_contract_base.R`,
